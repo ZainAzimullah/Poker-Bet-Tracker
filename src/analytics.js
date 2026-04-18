@@ -8,5 +8,6 @@ if (token) {
 
 export function track(event, properties = {}) {
   if (!token) return
-  mixpanel.track(event, properties)
+  const isDeveloper = localStorage.getItem('__developer') === 'true'
+  mixpanel.track(event, { ...properties, ...(isDeveloper && { developer: true }) })
 }
