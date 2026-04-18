@@ -46,11 +46,11 @@ This project was scoped and designed using a full PM workflow before any code wa
 
 | Artefact | Preview |
 |---|---|
-| Metrics Tree | ![Metrics Tree](./docs/metrics_tree.png) |
-| Jobs To Be Done | ![Jobs To Be Done](./docs/jobs_to_be_done.png) |
-| Opportunity-Solution Tree | ![Opportunity-Solution Tree](./docs/opportunity_solution_tree.png) |
-| MVP Success Metrics | ![Success Metrics](./docs/success_metrics.png) |
-| Story Map | ![Story Map](./docs/story_map.png) |
+| Metrics Tree | ![Metrics Tree](./docs/images/metrics_tree.png) |
+| Jobs To Be Done | ![Jobs To Be Done](./docs/images/jobs_to_be_done.png) |
+| Opportunity-Solution Tree | ![Opportunity-Solution Tree](./docs/images/opportunity_solution_tree.png) |
+| MVP Success Metrics | ![Success Metrics](./docs/images/success_metrics.png) |
+| Story Map | ![Story Map](./docs/images/story_map.png) |
 
 ---
 
