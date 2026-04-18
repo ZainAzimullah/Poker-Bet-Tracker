@@ -40,7 +40,7 @@ This project was scoped and designed using a full PM workflow before any code wa
 | [`prd.md`](./docs/prd.md) | Full product requirements document — problem, JTBD, scope, metrics, functional requirements |
 | [`user-flow-wireframes.md`](./docs/user-flow-wireframes.md) | User flow diagram and annotated lo-fi wireframes for all three screens |
 | [`roadmap.md`](./docs/roadmap.md) | Release strategy — MVP, Release 2 candidates, backlog, and decision checkpoints |
-| [`test-plan.md`](./docs/test-plan.md) | Lightweight usability test plan with hypotheses tied to success metrics |
+| [`Analytics`](https://mixpanel.com/p/65kHTYq3rAT8VAvK5Es1Q2) | Mixpanel dashboard tracking success metrics |
 
 ### Product Artefacts
 
