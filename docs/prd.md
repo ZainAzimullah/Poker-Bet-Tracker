@@ -3,7 +3,6 @@
 
 **Version:** 1.0 — MVP  
 **Status:** Ready for development  
-**Author:** [Your name]
 
 ---
 
