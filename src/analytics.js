@@ -25,6 +25,10 @@ if (token) {
   const distinctId = getOrCreateDistinctId()
   if (distinctId) {
     mixpanel.identify(distinctId)
+    const isDeveloper = localStorage.getItem('__developer') === 'true'
+    if (isDeveloper) {
+      mixpanel.people.set({ developer: true })
+    }
   }
 }
 
