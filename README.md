@@ -2,7 +2,36 @@
 
 A lightweight mobile web app for tracking poker bets, stacks, and pots during casual in-person games — no physical chips required.
 
+**→ [poker-bet-tracker.vercel.app](https://poker-bet-tracker.vercel.app/)**
+
 ![Poker Bet Tracker app demo](docs/images/demo.png)
+
+---
+
+## Product Development Process
+
+### Discovery
+
+| Artefact | Preview |
+|---|---|
+| [Opportunity-Solution Tree](docs/images/opportunity_solution_tree.png) | ![OST](docs/images/opportunity_solution_tree.png) |
+| [Jobs-To-Be-Done](docs/images/jobs_to_be_done.png) | ![JTBD](docs/images/jobs_to_be_done.png) |
+| [Story Map & MVP Scope](docs/images/story_map.png) | ![Story Map](docs/images/story_map.png) |
+| [Metrics Tree](docs/images/metrics_tree.png) | ![Metrics Tree](docs/images/metrics_tree.png) |
+| [MVP Success Metrics](docs/images/success_metrics.png) | ![Success Metrics](docs/images/success_metrics.png) |
+
+### Definition
+
+| Document | Description |
+|---|---|
+| [PRD](docs/prd.md) | Problem, target user, JTBD, MVP scope, functional requirements, success metrics |
+| [Roadmap](docs/roadmap.md) | Release strategy — MVP, Release 2 candidates, backlog, and decision checkpoints |
+
+### Measurement
+
+| Artefact | Link |
+|---|---|
+| Analytics | [Mixpanel Dashboard](https://mixpanel.com/p/65kHTYq3rAT8VAvK5Es1Q2) |
 
 ---
 
@@ -14,51 +43,44 @@ Poker Bet Tracker replaces that mental overhead with a simple, always-visible in
 
 ---
 
-## Product Demo
+## Core Loop + North Star
 
-https://poker-bet-tracker.vercel.app/
+**Add players → See current bets → Act → End hand → Play another hand**
+
+Every feature decision was evaluated against whether it supported this loop. If it didn't, it was cut.
+
+**North Star Metric:** # poker hands completed per active user without physical chips
 
 ---
 
-## Features (MVP)
+## Target User
 
-- Add players and set starting stacks via buy-in
+Casual poker players playing informally with friends, in-person, without chips. They have a deck of cards and a phone. They are not competitive or tournament players — they want a fast, trustworthy way to keep the game moving.
+
+---
+
+## MVP Scope
+
+**In scope**
+- Add player names and buy-in amounts (starting stacks)
 - Live pot total that updates as bets are placed
 - Per-player stack and current bet always visible
 - Actions: **Check**, **Bet** (covers call/raise), **Fold**
 - End hand flow — select winner, award pot, reset for next hand
-- Repeatable — stacks carry over between hands
+- Stacks carry over between hands
+
+**Intentionally excluded**
+- Blind levels and blind posting
+- Turn order enforcement
+- Minimum bet / raise-size rules
+- Side pots and split pots
+- Session history and persistence
+
+These are Release 2 and backlog candidates, not oversights. See [roadmap.md](docs/roadmap.md).
 
 ---
 
-## Product Documentation
-
-This project was scoped and designed using a full PM workflow before any code was written. The artefacts are included in this repo as a case study in product thinking.
-
-| Artefact | Description |
-|---|---|
-| [`prd.md`](./docs/prd.md) | Full product requirements document — problem, JTBD, scope, metrics, functional requirements |
-| [`user-flow-wireframes.md`](./docs/user-flow-wireframes.md) | User flow diagram and annotated lo-fi wireframes for all three screens |
-| [`roadmap.md`](./docs/roadmap.md) | Release strategy — MVP, Release 2 candidates, backlog, and decision checkpoints |
-| [`Analytics`](https://mixpanel.com/p/65kHTYq3rAT8VAvK5Es1Q2) | Mixpanel dashboard tracking success metrics |
-
-### Product Artefacts
-
-| Artefact | Preview |
-|---|---|
-| Metrics Tree | ![Metrics Tree](./docs/images/metrics_tree.png) |
-| Jobs To Be Done | ![Jobs To Be Done](./docs/images/jobs_to_be_done.png) |
-| Opportunity-Solution Tree | ![Opportunity-Solution Tree](./docs/images/opportunity_solution_tree.png) |
-| MVP Success Metrics | ![Success Metrics](./docs/images/success_metrics.png) |
-| Story Map | ![Story Map](./docs/images/story_map.png) |
-
----
-
-## North Star Metric
-
-**# poker hands completed per active user without physical chips**
-
-### MVP Success Targets
+## Success Metrics
 
 | Goal | Metric | Target |
 |---|---|---|
@@ -71,6 +93,33 @@ This project was scoped and designed using a full PM workflow before any code wa
 
 ---
 
+## Roadmap
+
+**MVP** — Core tracking loop (this release)
+
+**Release 2** — Blind config, turn order, betting street progression, rules enforcement
+
+**Backlog** — Side pots, session history, multi-device, seat positions
+
+See [roadmap.md](docs/roadmap.md) for full detail and the conditions that unlock each release.
+
+---
+
+## Reflection & Key Learnings
+
+**Upfront PM structure shaped better product decisions.**
+Defining the problem, JTBD, and north star before writing any code made scope decisions easier and more defensible. When something was tempting to add — turn order, blind enforcement — the OST made it clear it was a Release 2 problem, not an MVP problem.
+
+**The narrowest version of the core loop is the right place to start.**
+The MVP deliberately avoids poker-specific complexity. The real question wasn't "can we build a poker engine?" — it was "will users trust a simple tracker enough to play multiple hands?" Scoping to that question kept the build focused.
+
+**Simple over comprehensive is a discipline, not a default.**
+Every feature cut was a deliberate choice backed by the product principles. The goal was a trustworthy, glanceable interface — not a rule-complete simulator.
+
+> The first goal is simple, trustworthy hand tracking. Complexity is earned, not assumed.
+
+---
+
 ## Tech Stack
 
 | Layer | Choice |
@@ -79,17 +128,18 @@ This project was scoped and designed using a full PM workflow before any code wa
 | Styling | Tailwind CSS |
 | State management | React state / useReducer |
 | Backend | None — client-side only |
+| Analytics | Mixpanel |
 | Deployment | Vercel |
 
 ---
 
-## Getting Started
+## Local Development
 
 ### Prerequisites
 - Node.js 18+
 - npm or yarn
 
-### Run locally
+### Setup
 
 ```bash
 git clone https://github.com/your-username/poker-bet-tracker.git
@@ -100,48 +150,7 @@ npm run dev
 
 Open [http://localhost:5173](http://localhost:5173) in your browser.
 
-### Build for production
-
-```bash
-npm run build
-```
-
-Output is in the `/dist` folder.
-
----
-
-## Deployment
-
-Deployed via Vercel. Every push to `main` triggers an automatic deployment.
-
----
-
-## Roadmap
-
-**MVP** — Core tracking loop (this release)
-
-**Release 2** — Blind config, turn order, betting street progression, rules enforcement
-
-**Backlog** — Side pots, session history, multi-device, seat positions
-
-See [`roadmap.md`](./docs/roadmap.md) for full detail and the conditions that unlock each release.
-
----
-
-## Out of Scope (MVP)
-
-This is not a full poker simulator. The MVP deliberately excludes:
-
-- Blind levels and blind posting
-- Turn order enforcement
-- Minimum bet / raise-size rules
-- Side pots and split pots
-- Session history and persistence
-
-These are Release 2 and backlog candidates, not oversights.
-
----
-
-## About This Project
-
-Poker Bet Tracker is a personal side project built to solve a real problem and serve as a product management case study. The PM workflow — problem framing, opportunity-solution tree, story mapping, metrics definition — was completed before development began.
+| Command | Description |
+|---|---|
+| `npm run dev` | Start dev server with hot reload |
+| `npm run build` | Build for production → `dist/` |
