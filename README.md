@@ -6,6 +6,8 @@ A lightweight mobile web app for tracking poker bets, stacks, and pots during ca
 
 ![Poker Bet Tracker app demo](docs/images/demo.png)
 
+⚠️ This app uses virtual units only and does not support real-money transactions or payments.
+
 ---
 
 ## Product Development Process
