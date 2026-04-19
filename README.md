@@ -34,6 +34,7 @@ A lightweight mobile web app for tracking poker bets, stacks, and pots during ca
 | Artefact | Link |
 |---|---|
 | Analytics | [Mixpanel Dashboard](https://mixpanel.com/p/65kHTYq3rAT8VAvK5Es1Q2) |
+| User Feedback | [Feedback Form](https://docs.google.com/forms/d/e/1FAIpQLSfEjYABmkLZCA-GHMYz_qO0tPQD1e-WqhakBQ-in3KlVz4qmA/viewform) |
 
 ---
 
