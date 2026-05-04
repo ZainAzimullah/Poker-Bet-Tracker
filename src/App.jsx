@@ -5,9 +5,13 @@ import {
   playChipSound,
   playCheckSound,
   playFoldSound,
+  playShuffleSound,
+  playDealCardsSound,
   playPotAwardSound,
   playAllInSound,
   cancelPendingCheckSound,
+  initGameSounds,
+  warmGameSoundsFromGesture,
 } from './gameSounds'
 import SetupScreen from './screens/SetupScreen'
 import GameplayScreen from './screens/GameplayScreen'
@@ -41,9 +45,18 @@ function gameReducer(state, action) {
       case 'CHECK':
         playCheckSound()
         break
+      case 'START_GAME':
+      case 'NEXT_HAND':
+        playShuffleSound()
+        break
       case 'CONFIRM_NEXT_STREET':
         // Prevent a delayed second "check" tap from sounding like it's tied to modal OK.
         cancelPendingCheckSound()
+        if (state.pendingStreetPrompt === 'flop') {
+          playDealCardsSound(3)
+        } else if (state.pendingStreetPrompt === 'turn' || state.pendingStreetPrompt === 'river') {
+          playDealCardsSound(1)
+        }
         break
       case 'FOLD':
         playFoldSound()
@@ -64,6 +77,29 @@ export default function App() {
 
   useEffect(() => {
     track('game_setup_started')
+    initGameSounds()
+  }, [])
+
+  useEffect(() => {
+    let done = false
+    const onFirstGesture = () => {
+      if (done) return
+      done = true
+      warmGameSoundsFromGesture()
+      window.removeEventListener('pointerdown', onFirstGesture)
+      window.removeEventListener('keydown', onFirstGesture)
+      window.removeEventListener('touchstart', onFirstGesture)
+    }
+
+    window.addEventListener('pointerdown', onFirstGesture, { passive: true })
+    window.addEventListener('keydown', onFirstGesture)
+    window.addEventListener('touchstart', onFirstGesture, { passive: true })
+
+    return () => {
+      window.removeEventListener('pointerdown', onFirstGesture)
+      window.removeEventListener('keydown', onFirstGesture)
+      window.removeEventListener('touchstart', onFirstGesture)
+    }
   }, [])
 
   return (
