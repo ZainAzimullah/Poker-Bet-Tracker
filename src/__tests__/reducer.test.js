@@ -25,12 +25,6 @@ function makeState(overrides = {}) {
     ...initialState,
     screen: 'gameplay',
     handNumber: 1,
-    dealerIndex: 0,
-    smallBlind: null,
-    bigBlind: null,
-    currentStreet: null,
-    activePlayerIndex: null,
-    lastBetSize: 0,
     players: [],
     ...overrides,
   }
@@ -48,6 +42,8 @@ describe('CALL', () => {
   it('deducts exact call amount from stack and adds to pot', () => {
     const state = makeState({
       pot: 10,
+      activePlayerIndex: 1,
+      firstActorIndex: 0,
       players: [
         makePlayer({ id: 1, currentStack: 90, currentBet: 10 }),
         makePlayer({ id: 2, currentStack: 100, currentBet: 0 }),
@@ -63,6 +59,8 @@ describe('CALL', () => {
   it('goes all-in when stack is less than call amount', () => {
     const state = makeState({
       pot: 50,
+      activePlayerIndex: 1,
+      firstActorIndex: 0,
       players: [
         makePlayer({ id: 1, currentStack: 50, currentBet: 50 }),
         makePlayer({ id: 2, currentStack: 30, currentBet: 0 }),
@@ -78,6 +76,8 @@ describe('CALL', () => {
   it('does not go below zero stack on all-in call', () => {
     const state = makeState({
       pot: 100,
+      activePlayerIndex: 1,
+      firstActorIndex: 0,
       players: [
         makePlayer({ id: 1, currentStack: 0, currentBet: 100 }),
         makePlayer({ id: 2, currentStack: 20, currentBet: 0 }),
@@ -91,6 +91,8 @@ describe('CALL', () => {
   it('does not change the calling player currentBet when they already match max', () => {
     const state = makeState({
       pot: 20,
+      activePlayerIndex: 1,
+      firstActorIndex: 0,
       players: [
         makePlayer({ id: 1, currentStack: 80, currentBet: 20 }),
         makePlayer({ id: 2, currentStack: 80, currentBet: 20 }),
@@ -106,6 +108,8 @@ describe('CALL', () => {
   it('does not affect other players', () => {
     const state = makeState({
       pot: 10,
+      activePlayerIndex: 1,
+      firstActorIndex: 0,
       players: [
         makePlayer({ id: 1, currentStack: 90, currentBet: 10 }),
         makePlayer({ id: 2, currentStack: 100, currentBet: 0 }),
@@ -123,16 +127,31 @@ describe('CALL', () => {
 // ---------------------------------------------------------------------------
 
 describe('ROTATE_DEALER', () => {
-  it('increments dealerIndex by 1', () => {
-    const state = makeState({ dealerIndex: 0, players: [makePlayer({ id: 1 }), makePlayer({ id: 2 })] })
+  it('increments dealerIndex by 1 on setup screen only', () => {
+    const state = makeState({
+      screen: 'setup',
+      dealerIndex: 0,
+      players: [makePlayer({ id: 1 }), makePlayer({ id: 2 })],
+    })
     const next = dispatch(state, { type: 'ROTATE_DEALER' })
     expect(next.dealerIndex).toBe(1)
   })
 
   it('wraps dealerIndex around when at the last player', () => {
     const state = makeState({
+      screen: 'setup',
       dealerIndex: 2,
       players: [makePlayer({ id: 1 }), makePlayer({ id: 2 }), makePlayer({ id: 3 })],
+    })
+    const next = dispatch(state, { type: 'ROTATE_DEALER' })
+    expect(next.dealerIndex).toBe(0)
+  })
+
+  it('does not rotate during gameplay', () => {
+    const state = makeState({
+      screen: 'gameplay',
+      dealerIndex: 0,
+      players: [makePlayer({ id: 1 }), makePlayer({ id: 2 })],
     })
     const next = dispatch(state, { type: 'ROTATE_DEALER' })
     expect(next.dealerIndex).toBe(0)
@@ -140,29 +159,38 @@ describe('ROTATE_DEALER', () => {
 })
 
 describe('NEXT_HAND — dealerIndex rotation', () => {
-  it('rotates dealerIndex by 1 on NEXT_HAND', () => {
+  it('rotates dealerIndex by 1 on NEXT_HAND with 3+ players', () => {
     const state = makeState({
       screen: 'handComplete',
       dealerIndex: 0,
+      headsUpStreak: 0,
       pot: 50,
       players: [
         makePlayer({ id: 1, currentBet: 20, hasFolded: false }),
         makePlayer({ id: 2, currentBet: 30, hasFolded: true }),
+        makePlayer({ id: 3, currentBet: 0, hasFolded: false }),
       ],
     })
     const next = dispatch(state, { type: 'NEXT_HAND' })
     expect(next.dealerIndex).toBe(1)
+    expect(next.headsUpStreak).toBe(0)
   })
 
-  it('wraps dealerIndex on NEXT_HAND', () => {
+  it('heads-up: dealer stays for two hands then switches', () => {
     const state = makeState({
       screen: 'handComplete',
       dealerIndex: 1,
+      headsUpStreak: 0,
       pot: 0,
       players: [makePlayer({ id: 1 }), makePlayer({ id: 2 })],
     })
-    const next = dispatch(state, { type: 'NEXT_HAND' })
-    expect(next.dealerIndex).toBe(0)
+    const hand2 = dispatch(state, { type: 'NEXT_HAND' })
+    expect(hand2.dealerIndex).toBe(1)
+    expect(hand2.headsUpStreak).toBe(1)
+
+    const hand3 = dispatch(hand2, { type: 'NEXT_HAND' })
+    expect(hand3.dealerIndex).toBe(0)
+    expect(hand3.headsUpStreak).toBe(0)
   })
 
   it('resets pot, currentBet, and hasFolded on NEXT_HAND', () => {
@@ -481,64 +509,28 @@ describe('POST_BLINDS', () => {
 // Step 6 — Turn order (activePlayerIndex)
 // ---------------------------------------------------------------------------
 
-describe('NEXT_PLAYER', () => {
-  it('advances activePlayerIndex to the next non-folded, non-all-in player', () => {
+describe('Turn enforcement', () => {
+  it('ignores PLACE_BET from a non-active player', () => {
     const state = makeState({
-      activePlayerIndex: 0,
+      activePlayerIndex: 1,
+      firstActorIndex: 0,
+      currentStreet: 'flop',
+      pot: 0,
       players: [
-        makePlayer({ id: 1, hasFolded: false, isAllIn: false }),
-        makePlayer({ id: 2, hasFolded: false, isAllIn: false }),
-        makePlayer({ id: 3, hasFolded: false, isAllIn: false }),
+        makePlayer({ id: 1, currentStack: 100, currentBet: 0 }),
+        makePlayer({ id: 2, currentStack: 100, currentBet: 0 }),
       ],
     })
-    const next = dispatch(state, { type: 'NEXT_PLAYER' })
-    expect(next.activePlayerIndex).toBe(1)
-  })
-
-  it('skips folded players', () => {
-    const state = makeState({
-      activePlayerIndex: 0,
-      players: [
-        makePlayer({ id: 1, hasFolded: false, isAllIn: false }),
-        makePlayer({ id: 2, hasFolded: true, isAllIn: false }),
-        makePlayer({ id: 3, hasFolded: false, isAllIn: false }),
-      ],
-    })
-    const next = dispatch(state, { type: 'NEXT_PLAYER' })
-    expect(next.activePlayerIndex).toBe(2)
-  })
-
-  it('skips all-in players', () => {
-    const state = makeState({
-      activePlayerIndex: 0,
-      players: [
-        makePlayer({ id: 1, hasFolded: false, isAllIn: false }),
-        makePlayer({ id: 2, hasFolded: false, isAllIn: true }),
-        makePlayer({ id: 3, hasFolded: false, isAllIn: false }),
-      ],
-    })
-    const next = dispatch(state, { type: 'NEXT_PLAYER' })
-    expect(next.activePlayerIndex).toBe(2)
-  })
-
-  it('wraps around to first eligible player', () => {
-    const state = makeState({
-      activePlayerIndex: 2,
-      players: [
-        makePlayer({ id: 1, hasFolded: false, isAllIn: false }),
-        makePlayer({ id: 2, hasFolded: true, isAllIn: false }),
-        makePlayer({ id: 3, hasFolded: false, isAllIn: false }),
-      ],
-    })
-    const next = dispatch(state, { type: 'NEXT_PLAYER' })
-    expect(next.activePlayerIndex).toBe(0)
+    const next = dispatch(state, { type: 'PLACE_BET', id: 1, amount: 10 })
+    expect(next).toBe(state)
   })
 })
 
 describe('Action advance — activePlayerIndex updates', () => {
   const threePlayerState = makeState({
     activePlayerIndex: 0,
-    currentStreet: 'preflop',
+    firstActorIndex: 0,
+    currentStreet: 'flop',
     pot: 0,
     players: [
       makePlayer({ id: 1, currentStack: 100, hasFolded: false, isAllIn: false }),
@@ -565,6 +557,8 @@ describe('Action advance — activePlayerIndex updates', () => {
   it('CALL advances activePlayerIndex', () => {
     const state = makeState({
       activePlayerIndex: 1,
+      firstActorIndex: 0,
+      currentStreet: 'flop',
       pot: 10,
       players: [
         makePlayer({ id: 1, currentStack: 90, currentBet: 10, hasFolded: false, isAllIn: false }),
@@ -581,60 +575,83 @@ describe('Action advance — activePlayerIndex updates', () => {
 // Step 7 — ADVANCE_STREET
 // ---------------------------------------------------------------------------
 
-describe('ADVANCE_STREET', () => {
-  it('advances from preflop to flop', () => {
-    const state = makeState({ currentStreet: 'preflop', players: [makePlayer({ id: 1 }), makePlayer({ id: 2 })] })
-    const next = dispatch(state, { type: 'ADVANCE_STREET' })
+describe('CONFIRM_NEXT_STREET', () => {
+  it('advances from preflop to flop after prompt', () => {
+    const state = makeState({
+      currentStreet: 'preflop',
+      pendingStreetPrompt: 'flop',
+      activePlayerIndex: null,
+      dealerIndex: 0,
+      players: [makePlayer({ id: 1 }), makePlayer({ id: 2 })],
+    })
+    const next = dispatch(state, { type: 'CONFIRM_NEXT_STREET' })
     expect(next.currentStreet).toBe('flop')
+    expect(next.pendingStreetPrompt).toBeNull()
   })
 
   it('advances from flop to turn', () => {
-    const state = makeState({ currentStreet: 'flop', players: [makePlayer({ id: 1 }), makePlayer({ id: 2 })] })
-    const next = dispatch(state, { type: 'ADVANCE_STREET' })
+    const state = makeState({
+      currentStreet: 'flop',
+      pendingStreetPrompt: 'turn',
+      activePlayerIndex: null,
+      dealerIndex: 0,
+      players: [makePlayer({ id: 1 }), makePlayer({ id: 2 })],
+    })
+    const next = dispatch(state, { type: 'CONFIRM_NEXT_STREET' })
     expect(next.currentStreet).toBe('turn')
   })
 
   it('advances from turn to river', () => {
-    const state = makeState({ currentStreet: 'turn', players: [makePlayer({ id: 1 }), makePlayer({ id: 2 })] })
-    const next = dispatch(state, { type: 'ADVANCE_STREET' })
+    const state = makeState({
+      currentStreet: 'turn',
+      pendingStreetPrompt: 'river',
+      activePlayerIndex: null,
+      dealerIndex: 0,
+      players: [makePlayer({ id: 1 }), makePlayer({ id: 2 })],
+    })
+    const next = dispatch(state, { type: 'CONFIRM_NEXT_STREET' })
     expect(next.currentStreet).toBe('river')
   })
 
   it('resets all player currentBet values to 0', () => {
     const state = makeState({
       currentStreet: 'preflop',
+      pendingStreetPrompt: 'flop',
       players: [
         makePlayer({ id: 1, currentBet: 20 }),
         makePlayer({ id: 2, currentBet: 20 }),
       ],
     })
-    const next = dispatch(state, { type: 'ADVANCE_STREET' })
+    const next = dispatch(state, { type: 'CONFIRM_NEXT_STREET' })
     next.players.forEach((p) => expect(p.currentBet).toBe(0))
   })
 
   it('resets lastBetSize to 0', () => {
     const state = makeState({
       currentStreet: 'flop',
+      pendingStreetPrompt: 'turn',
       lastBetSize: 15,
       players: [makePlayer({ id: 1 }), makePlayer({ id: 2 })],
     })
-    const next = dispatch(state, { type: 'ADVANCE_STREET' })
+    const next = dispatch(state, { type: 'CONFIRM_NEXT_STREET' })
     expect(next.lastBetSize).toBe(0)
   })
 
   it('does not reset the pot', () => {
     const state = makeState({
       currentStreet: 'preflop',
+      pendingStreetPrompt: 'flop',
       pot: 80,
       players: [makePlayer({ id: 1 }), makePlayer({ id: 2 })],
     })
-    const next = dispatch(state, { type: 'ADVANCE_STREET' })
+    const next = dispatch(state, { type: 'CONFIRM_NEXT_STREET' })
     expect(next.pot).toBe(80)
   })
 
   it('sets activePlayerIndex to first non-folded, non-all-in player after dealer', () => {
     const state = makeState({
       currentStreet: 'preflop',
+      pendingStreetPrompt: 'flop',
       dealerIndex: 0,
       players: [
         makePlayer({ id: 1, hasFolded: false, isAllIn: false }),
@@ -642,8 +659,17 @@ describe('ADVANCE_STREET', () => {
         makePlayer({ id: 3, hasFolded: false, isAllIn: false }),
       ],
     })
-    const next = dispatch(state, { type: 'ADVANCE_STREET' })
+    const next = dispatch(state, { type: 'CONFIRM_NEXT_STREET' })
     expect(next.activePlayerIndex).toBe(1)
+  })
+
+  it('ADVANCE_STREET is a no-op (street advances via CONFIRM only)', () => {
+    const state = makeState({
+      currentStreet: 'preflop',
+      players: [makePlayer({ id: 1 }), makePlayer({ id: 2 })],
+    })
+    const next = dispatch(state, { type: 'ADVANCE_STREET' })
+    expect(next.currentStreet).toBe('preflop')
   })
 })
 
@@ -732,6 +758,9 @@ describe('PLACE_BET — lastBetSize tracking', () => {
     const state = makeState({
       lastBetSize: 0,
       pot: 0,
+      activePlayerIndex: 0,
+      firstActorIndex: 0,
+      currentStreet: 'flop',
       players: [
         makePlayer({ id: 1, currentStack: 100, currentBet: 0 }),
         makePlayer({ id: 2, currentStack: 100, currentBet: 0 }),
@@ -745,6 +774,9 @@ describe('PLACE_BET — lastBetSize tracking', () => {
     const state = makeState({
       lastBetSize: 10,
       pot: 10,
+      activePlayerIndex: 1,
+      firstActorIndex: 0,
+      currentStreet: 'flop',
       players: [
         makePlayer({ id: 1, currentStack: 90, currentBet: 10 }),
         makePlayer({ id: 2, currentStack: 100, currentBet: 0 }),
@@ -764,6 +796,9 @@ describe('PLACE_BET — all-in', () => {
   it('sets isAllIn to true when stack reaches 0', () => {
     const state = makeState({
       pot: 0,
+      activePlayerIndex: 0,
+      firstActorIndex: 0,
+      currentStreet: 'flop',
       players: [
         makePlayer({ id: 1, currentStack: 50 }),
         makePlayer({ id: 2, currentStack: 100 }),
@@ -778,6 +813,9 @@ describe('PLACE_BET — all-in', () => {
   it('does not set isAllIn when stack remains > 0', () => {
     const state = makeState({
       pot: 0,
+      activePlayerIndex: 0,
+      firstActorIndex: 0,
+      currentStreet: 'flop',
       players: [
         makePlayer({ id: 1, currentStack: 100 }),
         makePlayer({ id: 2, currentStack: 100 }),
@@ -793,6 +831,8 @@ describe('CALL — all-in', () => {
   it('sets isAllIn to true when calling player stack reaches 0', () => {
     const state = makeState({
       pot: 100,
+      activePlayerIndex: 1,
+      firstActorIndex: 0,
       players: [
         makePlayer({ id: 1, currentStack: 0, currentBet: 100 }),
         makePlayer({ id: 2, currentStack: 60, currentBet: 0 }),
@@ -807,6 +847,8 @@ describe('CALL — all-in', () => {
   it('does not set isAllIn when caller still has chips after call', () => {
     const state = makeState({
       pot: 10,
+      activePlayerIndex: 1,
+      firstActorIndex: 0,
       players: [
         makePlayer({ id: 1, currentStack: 90, currentBet: 10 }),
         makePlayer({ id: 2, currentStack: 100, currentBet: 0 }),
@@ -956,7 +998,23 @@ describe('initialState shape', () => {
     expect(initialState).toHaveProperty('activePlayerIndex', null)
   })
 
+  it('includes firstActorIndex defaulting to null', () => {
+    expect(initialState).toHaveProperty('firstActorIndex', null)
+  })
+
   it('includes lastBetSize defaulting to 0', () => {
     expect(initialState).toHaveProperty('lastBetSize', 0)
+  })
+
+  it('includes headsUpStreak defaulting to 0', () => {
+    expect(initialState).toHaveProperty('headsUpStreak', 0)
+  })
+
+  it('includes pendingStreetPrompt defaulting to null', () => {
+    expect(initialState).toHaveProperty('pendingStreetPrompt', null)
+  })
+
+  it('includes streetAggressionCount defaulting to 0', () => {
+    expect(initialState).toHaveProperty('streetAggressionCount', 0)
   })
 })

@@ -1,5 +1,14 @@
 import { useState } from 'react'
 import { useGame } from '../App'
+import { getBlindIndices } from '../reducer'
+
+function primaryVoluntaryBetLabel(streetAggressionCount, maxBet) {
+  const nextLevel = streetAggressionCount + 1
+  if (maxBet === 0) return 'Bet'
+  if (nextLevel === 1) return 'Raise'
+  if (nextLevel === 2) return '3-bet'
+  return `${nextLevel + 1}-bet`
+}
 
 export default function PlayerCard({ player }) {
   const { state, dispatch } = useGame()
@@ -10,14 +19,16 @@ export default function PlayerCard({ player }) {
   const playerIndex = state.players.findIndex((p) => p.id === player.id)
   const count = state.players.length
 
-  // Dealer / SB / BB role
+  // Dealer / SB / BB role (heads-up blind stagger)
   const dealerIdx = state.dealerIndex
-  const sbIdx = (dealerIdx + 1) % count
-  const bbIdx = (dealerIdx + 2) % count
+  const streak = state.headsUpStreak ?? 0
+  const { sbIdx, bbIdx } = getBlindIndices(dealerIdx, count, streak)
   const role = playerIndex === dealerIdx ? 'D' : playerIndex === sbIdx ? 'SB' : playerIndex === bbIdx ? 'BB' : null
 
-  // Active player
-  const isActive = state.activePlayerIndex === null || playerIndex === state.activePlayerIndex
+  const streetBlocked = state.pendingStreetPrompt != null
+  // Active player (strict turn order)
+  const isActive =
+    !streetBlocked && state.activePlayerIndex !== null && playerIndex === state.activePlayerIndex
 
   // Bet / call calculations
   const activePlayers = state.players.filter((p) => !p.hasFolded)
@@ -28,6 +39,7 @@ export default function PlayerCard({ player }) {
 
   // Min bet
   const minBet = maxBet > 0 ? (state.lastBetSize || state.bigBlind || null) : (state.bigBlind || null)
+  const betVerb = primaryVoluntaryBetLabel(state.streetAggressionCount ?? 0, maxBet)
 
   function handleBetConfirm() {
     const amount = Number(betInput)
@@ -170,7 +182,7 @@ export default function PlayerCard({ player }) {
             Check
           </button>
 
-          {showCall ? (
+          {showCall && (
             <button
               onClick={() => isActive && dispatch({ type: 'CALL', id: player.id })}
               disabled={!isActive}
@@ -184,33 +196,19 @@ export default function PlayerCard({ player }) {
                 ? `All-in ($${player.currentStack})`
                 : `Call $${callAmount}`}
             </button>
-          ) : (
-            <button
-              onClick={() => isActive && setBettingOpen(true)}
-              disabled={!isActive}
-              className={`flex-1 text-sm font-medium rounded-lg py-2.5 transition-colors ${
-                isActive
-                  ? 'bg-zinc-700 hover:bg-zinc-600 active:bg-zinc-500 text-white'
-                  : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
-              }`}
-            >
-              Bet
-            </button>
           )}
 
-          {showCall && (
-            <button
-              onClick={() => isActive && setBettingOpen(true)}
-              disabled={!isActive}
-              className={`flex-1 text-sm font-medium rounded-lg py-2.5 transition-colors ${
-                isActive
-                  ? 'bg-zinc-700 hover:bg-zinc-600 active:bg-zinc-500 text-white'
-                  : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
-              }`}
-            >
-              Raise
-            </button>
-          )}
+          <button
+            onClick={() => isActive && setBettingOpen(true)}
+            disabled={!isActive}
+            className={`flex-1 text-sm font-medium rounded-lg py-2.5 transition-colors ${
+              isActive
+                ? 'bg-zinc-700 hover:bg-zinc-600 active:bg-zinc-500 text-white'
+                : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
+            }`}
+          >
+            {betVerb}
+          </button>
 
           <button
             onClick={() => isActive && dispatch({ type: 'FOLD', id: player.id })}

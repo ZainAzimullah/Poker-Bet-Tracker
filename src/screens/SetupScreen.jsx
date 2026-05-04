@@ -121,6 +121,15 @@ export default function SetupScreen() {
               </li>
             ))}
           </ul>
+          {state.players.length >= 2 && (
+            <button
+              type="button"
+              onClick={() => dispatch({ type: 'ROTATE_DEALER' })}
+              className="w-full mt-4 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 text-zinc-300 font-medium rounded-xl py-3 text-sm transition-colors"
+            >
+              Rotate dealer (seat {state.dealerIndex + 1})
+            </button>
+          )}
         </div>
       )}
 

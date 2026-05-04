@@ -8,13 +8,45 @@ const STREET_LABEL = {
   river: 'River',
 }
 
+const PROMPT_TITLE = {
+  flop: 'Deal Flop',
+  turn: 'Deal Turn',
+  river: 'Deal River',
+}
+
 export default function GameplayScreen() {
   const { state, dispatch } = useGame()
 
   const streetLabel = state.currentStreet ? STREET_LABEL[state.currentStreet] : null
+  const pending = state.pendingStreetPrompt
 
   return (
-    <div className="max-w-md mx-auto px-4 py-8">
+    <div className="max-w-md mx-auto px-4 py-8 relative">
+      {pending && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="street-prompt-title"
+        >
+          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 max-w-sm w-full shadow-xl">
+            <h2 id="street-prompt-title" className="text-lg font-semibold text-center mb-2">
+              {PROMPT_TITLE[pending]}
+            </h2>
+            <p className="text-sm text-zinc-400 text-center mb-6">
+              When the board is ready, confirm to continue betting.
+            </p>
+            <button
+              type="button"
+              onClick={() => dispatch({ type: 'CONFIRM_NEXT_STREET' })}
+              className="w-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-400 text-white font-semibold rounded-xl py-3 text-sm transition-colors"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="text-center mb-6">
         <p className="text-xs text-zinc-500 uppercase tracking-widest mb-1">Pot</p>
         <p className="text-5xl font-bold tracking-tight">${state.pot}</p>
@@ -31,29 +63,6 @@ export default function GameplayScreen() {
         {state.players.map((player) => (
           <PlayerCard key={player.id} player={player} />
         ))}
-      </div>
-
-      <div className="flex gap-2 mb-3">
-        <button
-          onClick={() => dispatch({ type: 'NEXT_PLAYER' })}
-          className="flex-1 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 text-zinc-400 font-medium rounded-xl py-3 text-xs transition-colors"
-        >
-          Next player →
-        </button>
-        {state.currentStreet && state.currentStreet !== 'river' && (
-          <button
-            onClick={() => dispatch({ type: 'ADVANCE_STREET' })}
-            className="flex-1 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 text-zinc-400 font-medium rounded-xl py-3 text-xs transition-colors"
-          >
-            Next street →
-          </button>
-        )}
-        <button
-          onClick={() => dispatch({ type: 'ROTATE_DEALER' })}
-          className="bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 text-zinc-500 font-medium rounded-xl py-3 px-4 text-xs transition-colors"
-        >
-          Rotate dealer
-        </button>
       </div>
 
       <button
