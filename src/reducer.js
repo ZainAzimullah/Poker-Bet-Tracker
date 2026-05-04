@@ -32,13 +32,17 @@ export function getBlindIndices(dealerIndex, playerCount, headsUpStreak) {
   return { sbIdx: sb, bbIdx: bb }
 }
 
+/** Next seat that may still bet (not folded, not all-in). Null if no one can act. */
 export function nextEligibleIndex(players, fromIndex) {
   const count = players.length
+  const canVolitionallyAct = (idx) =>
+    !players[idx].hasFolded && !players[idx].isAllIn
+
   for (let i = 1; i <= count; i++) {
     const idx = (fromIndex + i) % count
-    if (!players[idx].hasFolded && !players[idx].isAllIn) return idx
+    if (canVolitionallyAct(idx)) return idx
   }
-  return fromIndex
+  return canVolitionallyAct(fromIndex) ? fromIndex : null
 }
 
 function maxContribution(players) {
@@ -71,6 +75,7 @@ export function isBettingRoundClosed(
   if (livePlayerCount(players) <= 1) return true
   if (needsContributionToMatch(players)) return false
   const nextIdx = nextEligibleIndex(players, actingPlayerIndex)
+  if (nextIdx === null) return true
   if (nextIdx === firstActorIndex) return true
   if (
     lastRaisePlayerIndex !== null &&
@@ -115,7 +120,22 @@ function applyPostBlinds(state) {
     return p
   })
 
-  return { ...state, pot, players: newPlayers }
+  const out = { ...state, pot, players: newPlayers }
+  const fa = nextEligibleIndex(newPlayers, bbIdx)
+  if (fa === null) {
+    const stalled = {
+      ...out,
+      firstActorIndex: null,
+      activePlayerIndex: null,
+    }
+    if (livePlayerCount(newPlayers) <= 1) return stalled
+    return maybeStreetPromptAfterRound(stalled)
+  }
+  return {
+    ...out,
+    firstActorIndex: fa,
+    activePlayerIndex: fa,
+  }
 }
 
 function advanceStreetCore(state) {
@@ -123,7 +143,7 @@ function advanceStreetCore(state) {
   track('street_advanced', { street_name: nextStreet, hand_number: state.handNumber })
   const newPlayers = state.players.map((p) => ({ ...p, currentBet: 0 }))
   const firstPost = nextEligibleIndex(newPlayers, state.dealerIndex)
-  return {
+  const partial = {
     ...state,
     currentStreet: nextStreet,
     lastBetSize: 0,
@@ -134,6 +154,13 @@ function advanceStreetCore(state) {
     activePlayerIndex: firstPost,
     players: newPlayers,
   }
+  if (firstPost === null) {
+    if (livePlayerCount(newPlayers) <= 1) {
+      return { ...partial, activePlayerIndex: null, firstActorIndex: null, pendingStreetPrompt: null }
+    }
+    return maybeStreetPromptAfterRound({ ...partial, activePlayerIndex: null, firstActorIndex: null })
+  }
+  return applySoleActorAutoPasses(partial)
 }
 
 function nextHuState(dealerIndex, headsUpStreak, playerCount) {
@@ -177,9 +204,16 @@ function finalizePlayerAction(nextState, newPlayers, actingIndex) {
     nextState.lastRaisePlayerIndex,
   )
   if (!closed) {
-    const nextA =
+    let nextA =
       nextState.activePlayerIndex !== null ? nextEligibleIndex(newPlayers, actingIndex) : null
-    return { ...nextState, players: newPlayers, activePlayerIndex: nextA }
+    if (nextA === null) {
+      const stalled = { ...nextState, players: newPlayers, activePlayerIndex: null }
+      if (livePlayerCount(newPlayers) <= 1) {
+        return { ...stalled, pendingStreetPrompt: null }
+      }
+      return maybeStreetPromptAfterRound(stalled)
+    }
+    return applySoleActorAutoPasses({ ...nextState, players: newPlayers, activePlayerIndex: nextA })
   }
 
   if (livePlayerCount(newPlayers) <= 1) {
@@ -189,9 +223,65 @@ function finalizePlayerAction(nextState, newPlayers, actingIndex) {
   return maybeStreetPromptAfterRound({ ...nextState, players: newPlayers })
 }
 
+/** Single player who can still place chips; null if zero or multiple. */
+function soleVolitionalPlayerIndex(players) {
+  let found = null
+  for (let i = 0; i < players.length; i++) {
+    if (!players[i].hasFolded && !players[i].isAllIn) {
+      if (found !== null) return null
+      found = i
+    }
+  }
+  return found
+}
+
+/**
+ * Skip all-in seats; auto-"check" when the only player who can bet has nothing to call
+ * (everyone else all-in or folded) so the hand does not stall.
+ */
+function applySoleActorAutoPasses(state) {
+  let s = state
+  for (let guard = 0; guard < 48; guard++) {
+    const a = s.activePlayerIndex
+    if (a === null || s.pendingStreetPrompt != null) return s
+
+    const ps = s.players
+    if (ps[a].isAllIn) {
+      const next = nextEligibleIndex(ps, a)
+      if (next === null) {
+        if (livePlayerCount(ps) <= 1) {
+          return { ...s, players: ps, activePlayerIndex: null, firstActorIndex: null, pendingStreetPrompt: null }
+        }
+        return maybeStreetPromptAfterRound({
+          ...s,
+          players: ps,
+          activePlayerIndex: null,
+          firstActorIndex: null,
+        })
+      }
+      s = { ...s, players: ps, activePlayerIndex: next }
+      continue
+    }
+
+    const sole = soleVolitionalPlayerIndex(ps)
+    if (sole !== a) return s
+
+    const maxBet = maxContribution(ps.filter((p) => !p.hasFolded))
+    if (ps[a].currentBet < maxBet) return s
+
+    track('check_selected', { hand_number: s.handNumber, auto_sole_actor: true })
+    s = finalizePlayerAction({ ...s }, ps, a)
+  }
+  return s
+}
+
 function assertTurn(state, playerIndex, actionType) {
   if (state.pendingStreetPrompt != null) return false
   if (state.activePlayerIndex === null) return false
+  if (state.players[playerIndex]?.isAllIn) {
+    track('all_in_action_blocked', { action_type: actionType, hand_number: state.handNumber })
+    return false
+  }
   if (state.activePlayerIndex !== playerIndex) {
     track('turn_violation_attempt', { action_type: actionType, hand_number: state.handNumber })
     return false
@@ -235,8 +325,6 @@ export function reducer(state, action) {
         hasFolded: false,
         isAllIn: false,
       }))
-      const { bbIdx } = getBlindIndices(state.dealerIndex, basePlayers.length, 0)
-      const firstAct = nextEligibleIndex(basePlayers, bbIdx)
       const baseState = {
         ...state,
         screen: 'gameplay',
@@ -248,11 +336,11 @@ export function reducer(state, action) {
         streetAggressionCount: 0,
         lastRaisePlayerIndex: null,
         pendingStreetPrompt: null,
-        firstActorIndex: firstAct,
-        activePlayerIndex: firstAct,
+        firstActorIndex: null,
+        activePlayerIndex: null,
         players: basePlayers,
       }
-      return applyPostBlinds(baseState)
+      return applySoleActorAutoPasses(applyPostBlinds(baseState))
     }
 
     case 'POST_BLINDS': {
@@ -475,8 +563,6 @@ export function reducer(state, action) {
         hasFolded: false,
         isAllIn: false,
       }))
-      const { bbIdx } = getBlindIndices(nd, n, nh)
-      const firstAct = nextEligibleIndex(basePlayers, bbIdx)
       const baseState = {
         ...state,
         screen: 'gameplay',
@@ -492,11 +578,11 @@ export function reducer(state, action) {
         streetAggressionCount: 0,
         lastRaisePlayerIndex: null,
         pendingStreetPrompt: null,
-        firstActorIndex: firstAct,
-        activePlayerIndex: firstAct,
+        firstActorIndex: null,
+        activePlayerIndex: null,
         players: basePlayers,
       }
-      return applyPostBlinds(baseState)
+      return applySoleActorAutoPasses(applyPostBlinds(baseState))
     }
 
     default:

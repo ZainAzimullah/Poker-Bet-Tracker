@@ -56,6 +56,10 @@ So SB/BB assignment alternates every hand, while the visible dealer button shift
 
 **`FOLD`:** Allowed **only** when the player is **facing** an unmatched wager this street: `maxBet > 0` and `currentBet < maxBet` (same condition as **Call**). If there is **no** wager on the street (`maxBet === 0`) or the player **already matched** the max (`currentBet >= maxBet`), **Fold** is illegal — use **Check** or **Bet** / **Raise** instead (including BB preflop option: **Check** or **Raise**, not fold).
 
+**All-in:** Players with **`isAllIn`** never receive **`activePlayerIndex`** for betting (turn order skips them). Any **`PLACE_BET` / `CALL` / `CHECK` / `FOLD`** from an all-in seat is rejected (**`all_in_action_blocked`**). **`PlayerCard`** already hides actions for all-in seats.
+
+**Sole survivor (no callers left):** If exactly **one** player can still volitionally act and **everyone else** in the hand is folded or all-in, and that player **owes no call** (`currentBet >= maxBet`, including **`maxBet === 0`** on a fresh street), the app **auto-advances** as if they checked (**`check_selected`** with **`auto_sole_actor: true`**) so the hand does not stall when bets cannot meaningfully be answered.
+
 **`NEXT_PLAYER`:** Remove entirely—delete the reducer branch and gameplay control (see §4). No dev-only fallback unless you add it back later.
 
 ### 3.4 When the betting round is complete
@@ -89,17 +93,19 @@ Until the user confirms, **no** betting on the next street occurs. Manual **Next
 
 1. **`ROTATE_DEALER`** — Only when `screen === 'setup'`; otherwise no-op + `dealer_rotate_blocked`.
 2. **`NEXT_HAND`** — Heads-up: **`headsUpStreak`** two-hand dealer stagger + blind swap; 3+: rotate dealer each hand.
-3. **`START_GAME` / `NEXT_HAND`** — First preflop actor after effective BB (`getBlindIndices`, `nextEligibleIndex`).
+3. **`START_GAME` / `NEXT_HAND`** — **`applyPostBlinds`** then sets **`firstActorIndex` / `activePlayerIndex`** to **`nextEligibleIndex(players, bbIdx)`** after posting (so all-in blinds do not retain the button). **`applySoleActorAutoPasses`** runs on the result. If **no** seat can act (everyone all-in), **`maybeStreetPromptAfterRound`** runs when appropriate.
 4. **`pendingStreetPrompt`** — Set when betting completes (not on river); cleared by **`CONFIRM_NEXT_STREET`** or **End hand**.
 5. **`CONFIRM_NEXT_STREET`** — Runs **`advanceStreetCore`**; emits **`street_confirmed`** + **`street_advanced`**.
 6. **`ADVANCE_STREET`** — **No-op** (no user bypass).
 7. **`PLACE_BET`** — **`targetStreetBet`** = total this street; legacy **`amount`** = increment. Min open / min raise / short all-in rules; **`lastBetSize`** = raise increment over previous max.
 8. **`CHECK`** — Preflop: **BB only**, **`maxBet === bigBlind`** (no raise).
-9. **Turn guards** — `PLACE_BET`, `CALL`, `CHECK`, `FOLD` require **`activePlayerIndex`**; **`turn_violation_attempt`** otherwise.
-10. **`FOLD`** — Only when facing a wager (`maxBet > 0` and player’s `currentBet < maxBet`); otherwise no-op + **`fold_blocked`** (`reason`: **`no_wager`** | **`no_call_required`**).
-11. **`NEXT_PLAYER`** — Removed.
-12. **`isBettingRoundClosed`** — Triggers street prompt when orbit + matched bets (uses **`lastRaisePlayerIndex`** where applicable).
-13. **`streetAggressionCount`** — Reset on street confirm and **`NEXT_HAND`**.
+9. **Turn guards** — `PLACE_BET`, `CALL`, `CHECK`, `FOLD` require **`activePlayerIndex`**; **`turn_violation_attempt`** otherwise. **All-in** seats: **`all_in_action_blocked`** (no **`turn_violation_attempt`**).
+10. **`nextEligibleIndex`** — Returns **`null`** when no non-folded, non-all-in player exists; callers complete the street / prompt instead of pointing **`activePlayerIndex`** at an all-in seat.
+11. **`applySoleActorAutoPasses`** — After each action and on **`advanceStreetCore`**, skips stray all-in **`activePlayerIndex`** and chains **auto-check** for the **sole** volitional player when they have nothing to call.
+12. **`FOLD`** — Only when facing a wager (`maxBet > 0` and player’s `currentBet < maxBet`); otherwise no-op + **`fold_blocked`** (`reason`: **`no_wager`** | **`no_call_required`**).
+13. **`NEXT_PLAYER`** — Removed.
+14. **`isBettingRoundClosed`** — **`nextIdx === null`** ⇒ closed; also uses **`lastRaisePlayerIndex`** where applicable.
+15. **`streetAggressionCount`** — Reset on street confirm and **`NEXT_HAND`**.
 
 ### 4.2 UI
 
@@ -119,6 +125,7 @@ Until the user confirms, **no** betting on the next street occurs. Manual **Next
 | **initialState shape** | **`headsUpStreak`**, **`firstActorIndex`**, **`pendingStreetPrompt`**, **`streetAggressionCount`**. |
 | **Preflop `CHECK`** | **`describe('CHECK — preflop big blind only')`** — non-BB no-op; BB CHECK advances when `maxBet === bigBlind`. |
 | **`FOLD`** | **`describe('FOLD — facing wager only')`** — no wager / matched max no-op; **`Action advance`** uses facing-bet state for a legal fold. |
+| **All-in / sole actor** | **`describe('All-in — cannot act; sole survivor auto-pass')`** — **`nextEligibleIndex`** null; all-in **`PLACE_BET`** no-op; **`CONFIRM_NEXT_STREET`** auto-passes empty flop when only one player can bet. |
 
 ### 4.4 Analytics (`track` in `reducer.js`; helper unchanged in `analytics.js`)
 
@@ -128,6 +135,8 @@ Until the user confirms, **no** betting on the next street occurs. Manual **Next
 | `street_confirmed` | **OK** on modal | `next_street`, `hand_number` |
 | `street_advanced` | **`advanceStreetCore`** (real street change) | `street_name`, `hand_number` |
 | `turn_violation_attempt` | Wrong player | `action_type`, `hand_number` |
+| `all_in_action_blocked` | **`PLACE_BET` / `CALL` / `CHECK` / `FOLD`** while seat **`isAllIn`** | `action_type`, `hand_number` |
+| `check_selected` | User **Check** or **sole-survivor auto pass** | `hand_number`; optional **`auto_sole_actor: true`** |
 | `dealer_rotate_blocked` | Rotate outside setup | `screen` |
 | `fold_blocked` | Illegal **`FOLD`** (no street wager, or already matched max) | **`reason`**: `no_wager` \| `no_call_required`, `hand_number` |
 | `bet_placed` | **`PLACE_BET`** succeeds | **`bet_amount`** = **chip increment** to pot; `hand_number`, `player_stack` |
@@ -170,6 +179,7 @@ Until the user confirms, **no** betting on the next street occurs. Manual **Next
 - Facing a wager: voluntary control never labelled **Bet**; **Raise** / **N-bet** only when `maxBet > 0`.
 - Preflop **Check** only for **BB** with **no raise** (`maxBet === bigBlind`); reducer and UI aligned.
 - **Fold** only when a **call** is required to continue (`maxBet > 0` and stack behind); reducer and **`PlayerCard`** aligned; **`fold_blocked`** on illegal attempts.
+- **All-in** seats never act; turn skips them; **`all_in_action_blocked`** if dispatch targets an all-in seat. **Sole** player with chips and **no call** facing all-in field auto-advances (**`auto_sole_actor`** on **`check_selected`**).
 - **`PLACE_BET`** uses **total street wager** (**`targetStreetBet`**); **`bet_placed.bet_amount`** = chip increment.
 - Seat tags and street modal copy match §9.
 - Tests (**§4.3**) and analytics contract (**§4.4**) documented and passing.
@@ -200,3 +210,4 @@ These extend the baseline plan without replacing core enforcement.
 | **Street prompts** | Titles + body: deal physical cards **then** tap **OK**. |
 | **Min open / raise** | Validated in reducer; short **all-in** raise allowed when stack cannot satisfy full min raise. |
 | **Fold** | Reducer + UI: only when **`showCall`** (facing a higher wager); no fold on a **free check** or **open** street with no bet. |
+| **All-in / sole actor** | **`nextEligibleIndex`** skips all-in; **`applySoleActorAutoPasses`** auto-checks when only one player can bet and **`currentBet >= maxBet`**; blinds sync **`firstActor`/`active`** after **`applyPostBlinds`**. |

@@ -1011,6 +1011,52 @@ describe('NEXT_HAND — resets isAllIn', () => {
   })
 })
 
+describe('All-in — cannot act; sole survivor auto-pass', () => {
+  it('nextEligibleIndex returns null when all live players are all-in', () => {
+    const players = [
+      makePlayer({ id: 1, currentBet: 10, isAllIn: true }),
+      makePlayer({ id: 2, currentBet: 10, isAllIn: true }),
+    ]
+    expect(nextEligibleIndex(players, 0)).toBeNull()
+  })
+
+  it('rejects PLACE_BET when the active seat is all-in', () => {
+    const state = makeState({
+      activePlayerIndex: 0,
+      firstActorIndex: 0,
+      currentStreet: 'flop',
+      players: [
+        makePlayer({ id: 1, currentStack: 0, currentBet: 10, isAllIn: true }),
+        makePlayer({ id: 2, currentStack: 50, currentBet: 10 }),
+      ],
+    })
+    const next = dispatch(state, { type: 'PLACE_BET', id: 1, targetStreetBet: 15 })
+    expect(next).toBe(state)
+  })
+
+  it('auto-passes flop for the only player with chips when others are all-in, then prompts turn', () => {
+    const pre = makeState({
+      currentStreet: 'preflop',
+      pendingStreetPrompt: 'flop',
+      activePlayerIndex: null,
+      dealerIndex: 0,
+      firstActorIndex: 0,
+      handNumber: 1,
+      pot: 52,
+      smallBlind: 1,
+      bigBlind: 2,
+      players: [
+        makePlayer({ id: 1, currentStack: 48, currentBet: 2, isAllIn: false }),
+        makePlayer({ id: 2, currentStack: 0, currentBet: 50, isAllIn: true }),
+      ],
+    })
+    const next = dispatch(pre, { type: 'CONFIRM_NEXT_STREET' })
+    expect(next.currentStreet).toBe('flop')
+    expect(next.pendingStreetPrompt).toBe('turn')
+    expect(next.activePlayerIndex).toBeNull()
+  })
+})
+
 // ---------------------------------------------------------------------------
 // Step 10 — Check prevention (logic helper — not the reducer)
 // ---------------------------------------------------------------------------
