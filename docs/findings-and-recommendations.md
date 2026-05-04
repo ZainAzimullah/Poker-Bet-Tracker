@@ -130,6 +130,12 @@ Both respondents raised manual call entry as a specific frustration, independent
 
 This matters more than its simplicity suggests. Manual call entry is not just friction — it is an additional error surface. Every time a user has to mentally calculate and enter a call amount, they risk entering the wrong value and corrupting the very state the product is supposed to maintain for them.
 
+#### 🔴 Pull forward: Split pot into Release 2
+
+Both respondents raised split pot independently. More importantly, it is a correctness gap, not a missing feature: when two players hold equivalent winning hands, the pot cannot be accurately resolved within the current end-hand flow. Heads-up play is the most common configuration for this app's target user, and ties are a regular occurrence. A split pot for two players is a simple equal division — it requires no complex side-pot logic and can ship as part of Release 2.
+
+Note the distinction from **side pots**, which remain in the backlog. Side pots only arise in multi-way all-in situations with different stack depths — significantly more complex and less frequently encountered in casual play. Split pots are the simpler, higher-impact problem to solve first.
+
 #### 🟡 Pull forward (lightweight): Blind/dealer position display
 
 The roadmap places *Position blinds and button* in the backlog and blind configuration in Release 2. Both respondents flagged the absence of any dealer/blind tracking — not because they needed enforcement, but because they needed a shared reference point at the table. The pain is social coordination, not rules.
@@ -141,12 +147,6 @@ A minimal implementation — display of who is dealer, SB, and BB, with a rotate
 #### 🟢 Keep as planned: Turn order enforcement, betting streets, minimum bet
 
 The survey does not show users failing to complete hands because of missing turn structure. Hand completion is at 75% — at target — without any enforcement. These features add structure and polish but are not currently blocking usage. They remain appropriate for Release 2.
-
-#### 🔴 Pull forward: Split pot into Release 2
-
-Both respondents raised split pot independently. More importantly, it is a correctness gap, not a missing feature: when two players hold equivalent winning hands, the pot cannot be accurately resolved within the current end-hand flow. Heads-up play is the most common configuration for this app's target user, and ties are a regular occurrence. A split pot for two players is a simple equal division — it requires no complex side-pot logic and can ship as part of Release 2.
-
-Note the distinction from **side pots**, which remain in the backlog. Side pots only arise in multi-way all-in situations with different stack depths — significantly more complex and less frequently encountered in casual play. Split pots are the simpler, higher-impact problem to solve first.
 
 #### 🟢 Keep in backlog: All-in shortcut
 
