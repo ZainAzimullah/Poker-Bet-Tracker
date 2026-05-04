@@ -146,6 +146,28 @@ See [roadmap.md](docs/roadmap.md) for full detail and the conditions that unlock
 
 ---
 
+## Release 2
+
+**Full PRD:** [prd-v2.md](docs/prd-v2.md)
+
+The post-MVP review validated the core loop and surfaced four things to address before the next layer of structure.
+
+**What's being fixed first (Layer 1)**
+- Bet input labelling — the additive model wasn't communicated clearly, causing users to enter the total wager instead of the increment and corrupt the pot mid-game
+- One-touch Call button — both respondents raised manual call entry as friction; the app already has everything needed to calculate it
+- Dealer / SB / BB position display with per-hand rotation — raised independently by both respondents as a social coordination problem, not a rules request
+- Split pot — a correctness gap in the end-hand flow; tied hands currently can't be resolved within the app
+
+**What's being added next (Layer 2)**
+- Turn order and active player indicator
+- Betting street display and progression (Pre-flop → Flop → Turn → River)
+- Blind level configuration
+- Minimum bet enforcement
+- All-in stack constraints
+- Check prevention when an unmatched wager exists
+
+---
+
 ## Tech Stack
 
 | Layer | Choice |
