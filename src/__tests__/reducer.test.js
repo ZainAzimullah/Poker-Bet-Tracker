@@ -1150,6 +1150,30 @@ describe('All-in — cannot act; sole survivor auto-pass', () => {
     s = dispatch(s, { type: 'CHECK', id: 1 })
     expect(s.pendingStreetPrompt).toBe('turn')
   })
+
+  it('closes flop when SB calls after BB all-in and dealer already matched (no second dealer turn)', () => {
+    const state = makeState({
+      currentStreet: 'flop',
+      dealerIndex: 2,
+      smallBlind: 1,
+      bigBlind: 2,
+      pot: 370,
+      firstActorIndex: 0,
+      activePlayerIndex: 0,
+      lastRaisePlayerIndex: 1,
+      lastBetSize: 180,
+      streetAggressionCount: 1,
+      players: [
+        makePlayer({ id: 1, name: 'a', currentStack: 196, currentBet: 0 }),
+        makePlayer({ id: 2, name: 'b', currentStack: 0, currentBet: 182, isAllIn: true }),
+        makePlayer({ id: 3, name: 'c', currentStack: 34, currentBet: 182 }),
+      ],
+    })
+    const next = dispatch(state, { type: 'CALL', id: 1 })
+    expect(next.players[0].currentBet).toBe(182)
+    expect(next.pendingStreetPrompt).toBe('turn')
+    expect(next.activePlayerIndex).toBeNull()
+  })
 })
 
 // ---------------------------------------------------------------------------

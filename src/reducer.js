@@ -107,18 +107,48 @@ function livePlayerCount(players) {
 /**
  * Betting round complete: all matched (given MVP all-in rules) and either
  * - action closed back to first actor, or
- * - next to act would be the last raiser, who already has the full wager in (no second action).
+ * - next to act would be the last raiser, who already has the full wager in (no second action), or
+ * - next volitional seat already has the street max in (e.g. last aggressor was all-in and is skipped).
+ *
+ * roundMeta: { currentStreet, bigBlind, bbIdx } — required from finalizePlayerAction so we do not
+ * close preflop before the big blind's check-raise option when only blinds are posted.
  */
 export function isBettingRoundClosed(
   players,
   firstActorIndex,
   actingPlayerIndex,
   lastRaisePlayerIndex,
+  roundMeta = {},
 ) {
+  const { currentStreet, bigBlind, bbIdx } = roundMeta
   if (livePlayerCount(players) <= 1) return true
   if (needsContributionToMatch(players)) return false
   const nextIdx = nextEligibleIndex(players, actingPlayerIndex)
   if (nextIdx === null) return true
+
+  const maxB = maxContribution(players)
+  const nextPlayer = players[nextIdx]
+  if (
+    maxB > 0 &&
+    nextPlayer &&
+    !nextPlayer.hasFolded &&
+    !nextPlayer.bustedOut &&
+    nextPlayer.currentBet >= maxB
+  ) {
+    const bbStillHasPreflopOption =
+      currentStreet === 'preflop' &&
+      lastRaisePlayerIndex == null &&
+      bigBlind != null &&
+      maxB === bigBlind &&
+      bbIdx != null &&
+      nextIdx === bbIdx
+    // Require a street aggressor so "next seat matched" does not end the round on the first check
+    // when maxBet > 0 only from odd legacy state (no lastRaise).
+    if (!bbStillHasPreflopOption && lastRaisePlayerIndex != null) {
+      return true
+    }
+  }
+
   if (firstActorIndex === null || firstActorIndex === undefined) return false
   if (nextIdx === firstActorIndex) return true
   if (
@@ -266,11 +296,17 @@ function finalizePlayerAction(nextState, newPlayers, actingIndex) {
       ? { ...nextState, firstActorIndex: repairedFA }
       : nextState
 
+  const { bbIdx } = getBlindIndices(newPlayers, base.dealerIndex, base.headsUpStreak ?? 0)
   const closed = isBettingRoundClosed(
     newPlayers,
     base.firstActorIndex,
     actingIndex,
     base.lastRaisePlayerIndex,
+    {
+      currentStreet: base.currentStreet,
+      bigBlind: base.bigBlind,
+      bbIdx,
+    },
   )
   if (!closed) {
     let nextA =
