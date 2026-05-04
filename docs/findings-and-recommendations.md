@@ -19,6 +19,8 @@ Beyond that, two features are being felt as absent by both respondents: a one-to
 
 ### Funnel Overview
 
+![MVP Funnel](images/mvp_funnel.png)
+
 | Step | Event | Users | Conversion |
 |---|---|---|---|
 | 1 | `game_setup_started` | 11 | — |
