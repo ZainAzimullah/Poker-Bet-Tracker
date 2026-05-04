@@ -8,6 +8,7 @@ const KNOCK_URL = '/sounds/door-knock-0095.ogg'
 const POT_AWARD_URL = '/sounds/chips-handle-5.ogg'
 const ALL_IN_URL = '/sounds/chips-handle-6.ogg'
 const ALL_IN_LAYER_URL = '/sounds/chips-collide-3.ogg'
+let checkTailTimeout = null
 
 function playOgg(url, volume) {
   if (typeof window === 'undefined') return
@@ -80,6 +81,13 @@ export function playAllInSound() {
   window.setTimeout(() => playOgg(ALL_IN_LAYER_URL, 0.2), 320)
 }
 
+export function cancelPendingCheckSound() {
+  if (checkTailTimeout != null) {
+    clearTimeout(checkTailTimeout)
+    checkTailTimeout = null
+  }
+}
+
 /**
  * Two quick knocks from a louder CC0 knock recording.
  * Uses plain Audio playback for broad browser reliability.
@@ -87,15 +95,17 @@ export function playAllInSound() {
 export function playCheckSound() {
   if (typeof window === 'undefined') return
   try {
+    cancelPendingCheckSound()
     // First transient in this sample is not at t=0, so jump into the louder knock body.
     playShortClip(KNOCK_URL, 1, 170, 0.42)
 
-    window.setTimeout(() => {
+    checkTailTimeout = window.setTimeout(() => {
       try {
         playShortClip(KNOCK_URL, 1, 170, 0.42)
       } catch {
         /* ignore */
       }
+      checkTailTimeout = null
     }, 160)
   } catch {
     /* ignore */
