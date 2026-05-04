@@ -17,6 +17,7 @@ The release strategy reflects this. Each release should expand what users can do
 
 This means:
 - MVP ships with intentionally limited poker logic
+- Any correctness or high-friction issues found post-MVP are patched before Release 2
 - Release 2 adds structure and guardrails once we know users are completing hands
 - Backlog features are only prioritised once engagement depth is confirmed
 
@@ -43,13 +44,34 @@ This means:
 ### What's deliberately excluded
 All betting rules enforcement, blind structures, turn order, side pots, and history. See `prd.md` for full out-of-scope list.
 
+### MVP status
+MVP success metrics have been met. See `findings-and-recommendations.md` for the full post-MVP review. A patch is shipping before Release 2 to address a correctness issue and two high-friction gaps surfaced by that review.
+
+---
+
+## Immediate Patch — Correctness & High-Friction Fixes
+
+**Goal:** Fix a tracked-state correctness issue and two friction points that emerged from post-MVP user feedback before building on top of the MVP.
+
+**What's included**
+
+| Area | Work |
+|---|---|
+| Bet input UX | Fix additive bet input labelling — display current maximum wager and label the field *Amount to add* so users enter the increment, not the total wager |
+| Actions | Add a one-touch Call button that auto-calculates the difference between the current maximum bet and the acting player's current bet |
+| Position display | Add dealer / SB / BB role display with a rotate button at end of hand (display only — no enforcement or configuration) |
+
+**Why now, not Release 2**
+
+The bet input issue is a correctness problem: users entering the total wager instead of the increment get a wrong pot total, which is the opposite of what the product exists to provide. It caused at least one mid-session restart in post-MVP testing. The call button and position display address the two most consistently cited friction points in user feedback and are self-contained additions that do not require Release 2 infrastructure.
+
 ---
 
 ## Release 2 — Structure & Rules
 
 **Goal:** Make the app feel more like real poker by adding turn awareness, betting streets, and rule guardrails.
 
-**Trigger:** MVP success metrics met. Exit interview feedback pointing to friction around turn order and betting constraints.
+**Trigger:** Immediate patch shipped. Continued feedback pointing to friction around turn order and betting constraints.
 
 ### Candidates
 
@@ -60,7 +82,7 @@ All betting rules enforcement, blind structures, turn order, side pots, and hist
 | Rules enforcement | Enforce minimum bet, constrain bets/raises to all-in when needed, prevent checking on existing wager, progress to next player, progress to next betting street |
 
 ### Prioritisation guidance
-Start with **turn order and whose turn it is** — this is the most commonly raised gap in informal play and directly reduces game friction. Blind config and rules enforcement can follow.
+Start with **turn order and whose turn it is** — this is the most commonly raised gap in informal play and directly reduces game friction. Blind level configuration and automatic blind posting follow. Rules enforcement (min bet, check prevention, all-in constraints) comes last.
 
 ---
 
@@ -82,33 +104,35 @@ These are validated ideas that are not yet prioritised. They should be revisited
 ## Roadmap at a Glance
 
 ```
-NOW                  NEXT                 LATER
-──────────────────   ──────────────────   ──────────────────────────
-MVP                  Release 2            Backlog
+DONE        IMMEDIATE PATCH      RELEASE 2            LATER
+──────────  ───────────────────  ──────────────────   ──────────────────────────
+MVP         Patch                Release 2            Backlog
 
-Add players          Blind config         Side pots
-Buy-ins              Max buy-in config    Blind rotation
-Pot tracking         Max players          Seat positions
-Stack tracking       Player positions     Betting history
-Bet logging          Betting streets      Player history
-Check / Bet / Fold   Turn progression     Past sessions
-Award pot            Min bet enforcement  Multi-device
-                     All-in constraints   Templates / photos
-                     Check prevention     Raise-size enforcement
+Add         Fix bet input        Blind config         Side pots
+players     labelling            Max buy-in config    Blind rotation
+Buy-ins     One-touch Call       Max players          Seat positions
+Pot         Dealer/SB/BB         Player positions     Betting history
+tracking    display +            Betting streets      Player history
+Stack       rotate button        Turn progression     Past sessions
+tracking                         Min bet enforcement  Multi-device
+Bet logging                      All-in constraints   Templates / photos
+Check /                          Check prevention     Raise-size enforcement
+Bet / Fold                       Auto blind posting
+Award pot
 ```
 
 ---
 
 ## Decision Checkpoints
 
-### After MVP launch
-Run 2–3 usability sessions (see `test-plan.md`). Review:
-- Is the core loop completion rate ≥ 75%?
-- Are users expressing any trust issues with the tracked state?
-- What do exit interviews surface as the biggest missing piece?
+### After MVP launch ✅ (complete)
+Post-MVP review completed. See `findings-and-recommendations.md`. Core loop metrics met. Bet input correctness issue and two high-friction gaps identified — addressed in the Immediate Patch.
+
+### After Immediate Patch ships
+Confirm the bet input confusion is resolved (no further mid-session restarts). Re-check likelihood-to-use signal across new sessions. If clean, proceed to Release 2.
 
 ### Before committing to Release 2
-Confirm that the gap users are feeling is about **structure and rules** (turn order, blinds) rather than **interface clarity**. If it's the latter, fix the MVP before building on top of it.
+Confirm that the gap users are feeling is about **structure and rules** (turn order, blinds) rather than **interface clarity**. If it's the latter, fix before building on top of it.
 
 ### Before investing in backlog items
 Validate engagement depth: are users averaging ≥ 3 hands per session? If not, more history and configuration features won't help — the core loop needs attention first.
