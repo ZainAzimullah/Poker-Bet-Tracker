@@ -5,9 +5,11 @@ export default function SetupScreen() {
   const { state, dispatch } = useGame()
   const [name, setName] = useState('')
   const [buyIn, setBuyIn] = useState('')
+  const [smallBlind, setSmallBlind] = useState('')
+  const [bigBlind, setBigBlind] = useState('')
   const [errors, setErrors] = useState({})
 
-  function validate() {
+  function validatePlayer() {
     const errs = {}
     if (!name.trim()) errs.name = 'Player name is required'
     const amount = Number(buyIn)
@@ -18,7 +20,7 @@ export default function SetupScreen() {
   }
 
   function handleAdd() {
-    const errs = validate()
+    const errs = validatePlayer()
     if (Object.keys(errs).length > 0) {
       setErrors(errs)
       return
@@ -33,7 +35,34 @@ export default function SetupScreen() {
     if (e.key === 'Enter') handleAdd()
   }
 
-  const canStart = state.players.length >= 2
+  function validateBlinds() {
+    const sb = Number(smallBlind)
+    const bb = Number(bigBlind)
+    const errs = {}
+    if (!smallBlind.trim() || isNaN(sb) || sb <= 0) errs.smallBlind = 'Enter a valid small blind'
+    if (!bigBlind.trim() || isNaN(bb) || bb <= 0) errs.bigBlind = 'Enter a valid big blind'
+    if (!errs.smallBlind && !errs.bigBlind && bb < sb) errs.bigBlind = 'Big blind must be ≥ small blind'
+    return errs
+  }
+
+  function handleStart() {
+    if (state.players.length < 2) return
+    const blindErrs = validateBlinds()
+    if (Object.keys(blindErrs).length > 0) {
+      setErrors((prev) => ({ ...prev, ...blindErrs }))
+      return
+    }
+    dispatch({ type: 'SET_BLINDS', smallBlind: Number(smallBlind), bigBlind: Number(bigBlind) })
+    dispatch({ type: 'START_GAME' })
+  }
+
+  const blindsValid = (() => {
+    const sb = Number(smallBlind)
+    const bb = Number(bigBlind)
+    return smallBlind.trim() && bigBlind.trim() && !isNaN(sb) && !isNaN(bb) && sb > 0 && bb >= sb
+  })()
+
+  const canStart = state.players.length >= 2 && blindsValid
 
   return (
     <div className="max-w-md mx-auto px-4 py-10">
@@ -95,12 +124,44 @@ export default function SetupScreen() {
         </div>
       )}
 
+      <div className="bg-zinc-900 rounded-2xl p-5 mb-6 space-y-3">
+        <p className="text-xs text-zinc-500 uppercase tracking-wider">Blinds</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <input
+              className={`w-full bg-zinc-800 rounded-lg px-4 py-3 text-sm placeholder-zinc-500 outline-none focus:ring-2 ${errors.smallBlind ? 'ring-2 ring-red-500' : 'focus:ring-zinc-600'}`}
+              placeholder="Small blind"
+              type="number"
+              min="1"
+              value={smallBlind}
+              onChange={(e) => { setSmallBlind(e.target.value); setErrors((prev) => ({ ...prev, smallBlind: null })) }}
+            />
+            {errors.smallBlind && <p className="text-red-400 text-xs mt-1">{errors.smallBlind}</p>}
+          </div>
+          <div>
+            <input
+              className={`w-full bg-zinc-800 rounded-lg px-4 py-3 text-sm placeholder-zinc-500 outline-none focus:ring-2 ${errors.bigBlind ? 'ring-2 ring-red-500' : 'focus:ring-zinc-600'}`}
+              placeholder="Big blind"
+              type="number"
+              min="1"
+              value={bigBlind}
+              onChange={(e) => { setBigBlind(e.target.value); setErrors((prev) => ({ ...prev, bigBlind: null })) }}
+            />
+            {errors.bigBlind && <p className="text-red-400 text-xs mt-1">{errors.bigBlind}</p>}
+          </div>
+        </div>
+      </div>
+
       <button
-        onClick={() => canStart && dispatch({ type: 'START_GAME' })}
+        onClick={handleStart}
         disabled={!canStart}
         className={`w-full font-semibold rounded-xl py-4 text-sm transition-colors ${canStart ? 'bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-400 text-white' : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'}`}
       >
-        {canStart ? 'Start Game' : `Add ${2 - state.players.length} more player${2 - state.players.length === 1 ? '' : 's'} to start`}
+        {state.players.length < 2
+          ? `Add ${2 - state.players.length} more player${2 - state.players.length === 1 ? '' : 's'} to start`
+          : !blindsValid
+          ? 'Set blinds to start'
+          : 'Start Game'}
       </button>
     </div>
   )

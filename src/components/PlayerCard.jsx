@@ -7,7 +7,27 @@ export default function PlayerCard({ player }) {
   const [betInput, setBetInput] = useState('')
   const [betError, setBetError] = useState('')
 
-  const anyWager = state.players.some((p) => !p.hasFolded && p.currentBet > 0)
+  const playerIndex = state.players.findIndex((p) => p.id === player.id)
+  const count = state.players.length
+
+  // Dealer / SB / BB role
+  const dealerIdx = state.dealerIndex
+  const sbIdx = (dealerIdx + 1) % count
+  const bbIdx = (dealerIdx + 2) % count
+  const role = playerIndex === dealerIdx ? 'D' : playerIndex === sbIdx ? 'SB' : playerIndex === bbIdx ? 'BB' : null
+
+  // Active player
+  const isActive = state.activePlayerIndex === null || playerIndex === state.activePlayerIndex
+
+  // Bet / call calculations
+  const activePlayers = state.players.filter((p) => !p.hasFolded)
+  const maxBet = Math.max(0, ...activePlayers.map((p) => p.currentBet))
+  const callAmount = Math.min(maxBet - player.currentBet, player.currentStack)
+  const showCall = maxBet > 0 && player.currentBet < maxBet
+  const canCheck = player.currentBet >= maxBet
+
+  // Min bet
+  const minBet = maxBet > 0 ? (state.lastBetSize || state.bigBlind || null) : (state.bigBlind || null)
 
   function handleBetConfirm() {
     const amount = Number(betInput)
@@ -17,6 +37,10 @@ export default function PlayerCard({ player }) {
     }
     if (amount > player.currentStack) {
       setBetError(`Max bet is $${player.currentStack}`)
+      return
+    }
+    if (minBet && amount < player.currentStack && amount < minBet) {
+      setBetError(`Min bet is $${minBet}`)
       return
     }
     dispatch({ type: 'PLACE_BET', id: player.id, amount })
@@ -47,10 +71,45 @@ export default function PlayerCard({ player }) {
     )
   }
 
+  if (player.isAllIn) {
+    return (
+      <div className={`bg-zinc-900 rounded-2xl p-4 ${isActive ? 'ring-2 ring-amber-500/60' : ''}`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <p className="font-medium text-sm">{player.name}</p>
+            {role && (
+              <span className="text-xs font-bold text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded">
+                {role}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="text-right">
+              <p className="text-xs text-zinc-400">Stack: <span className="text-white font-medium">${player.currentStack}</span></p>
+              <p className="text-xs text-zinc-400 mt-0.5">Bet: <span className="text-emerald-400 font-medium">${player.currentBet}</span></p>
+            </div>
+            <span className="text-xs font-semibold text-amber-400 uppercase tracking-wider bg-amber-900/40 border border-amber-700/50 px-2 py-1 rounded-md">
+              All-in
+            </span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const cardClass = `bg-zinc-900 rounded-2xl p-4 transition-all ${isActive ? 'ring-2 ring-emerald-500/60' : 'opacity-70'}`
+
   return (
-    <div className="bg-zinc-900 rounded-2xl p-4">
+    <div className={cardClass}>
       <div className="flex items-start justify-between mb-3">
-        <p className="font-medium text-sm">{player.name}</p>
+        <div className="flex items-center gap-2">
+          <p className="font-medium text-sm">{player.name}</p>
+          {role && (
+            <span className="text-xs font-bold text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded">
+              {role}
+            </span>
+          )}
+        </div>
         <div className="text-right">
           <p className="text-xs text-zinc-400">Stack: <span className="text-white font-medium">${player.currentStack}</span></p>
           <p className="text-xs text-zinc-400 mt-0.5">Bet: <span className="text-emerald-400 font-medium">${player.currentBet}</span></p>
@@ -59,6 +118,12 @@ export default function PlayerCard({ player }) {
 
       {bettingOpen ? (
         <div className="space-y-2">
+          {maxBet > 0 && (
+            <p className="text-xs text-zinc-500">Current bet: ${maxBet} · Amount to add</p>
+          )}
+          {minBet && (
+            <p className="text-xs text-zinc-600">Min: ${minBet}</p>
+          )}
           <div>
             <div className="flex items-center bg-zinc-800 rounded-lg overflow-hidden">
               <span className="pl-3 text-zinc-400 text-sm">$</span>
@@ -94,21 +159,67 @@ export default function PlayerCard({ player }) {
       ) : (
         <div className="flex gap-2">
           <button
-            onClick={() => dispatch({ type: 'CHECK', id: player.id })}
-            disabled={anyWager}
-            className={`flex-1 text-sm font-medium rounded-lg py-2.5 transition-colors ${anyWager ? 'bg-zinc-800 text-zinc-600 cursor-not-allowed' : 'bg-zinc-700 hover:bg-zinc-600 active:bg-zinc-500 text-white'}`}
+            onClick={() => isActive && dispatch({ type: 'CHECK', id: player.id })}
+            disabled={!canCheck || !isActive}
+            className={`flex-1 text-sm font-medium rounded-lg py-2.5 transition-colors ${
+              !canCheck || !isActive
+                ? 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
+                : 'bg-zinc-700 hover:bg-zinc-600 active:bg-zinc-500 text-white'
+            }`}
           >
             Check
           </button>
+
+          {showCall ? (
+            <button
+              onClick={() => isActive && dispatch({ type: 'CALL', id: player.id })}
+              disabled={!isActive}
+              className={`flex-1 text-sm font-medium rounded-lg py-2.5 transition-colors ${
+                isActive
+                  ? 'bg-blue-600 hover:bg-blue-500 active:bg-blue-400 text-white'
+                  : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
+              }`}
+            >
+              {player.currentStack <= callAmount
+                ? `All-in ($${player.currentStack})`
+                : `Call $${callAmount}`}
+            </button>
+          ) : (
+            <button
+              onClick={() => isActive && setBettingOpen(true)}
+              disabled={!isActive}
+              className={`flex-1 text-sm font-medium rounded-lg py-2.5 transition-colors ${
+                isActive
+                  ? 'bg-zinc-700 hover:bg-zinc-600 active:bg-zinc-500 text-white'
+                  : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
+              }`}
+            >
+              Bet
+            </button>
+          )}
+
+          {showCall && (
+            <button
+              onClick={() => isActive && setBettingOpen(true)}
+              disabled={!isActive}
+              className={`flex-1 text-sm font-medium rounded-lg py-2.5 transition-colors ${
+                isActive
+                  ? 'bg-zinc-700 hover:bg-zinc-600 active:bg-zinc-500 text-white'
+                  : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
+              }`}
+            >
+              Raise
+            </button>
+          )}
+
           <button
-            onClick={() => setBettingOpen(true)}
-            className="flex-1 bg-zinc-700 hover:bg-zinc-600 active:bg-zinc-500 text-white text-sm font-medium rounded-lg py-2.5 transition-colors"
-          >
-            Bet
-          </button>
-          <button
-            onClick={() => dispatch({ type: 'FOLD', id: player.id })}
-            className="flex-1 bg-zinc-700 hover:bg-zinc-600 active:bg-zinc-500 text-white text-sm font-medium rounded-lg py-2.5 transition-colors"
+            onClick={() => isActive && dispatch({ type: 'FOLD', id: player.id })}
+            disabled={!isActive}
+            className={`flex-1 text-sm font-medium rounded-lg py-2.5 transition-colors ${
+              isActive
+                ? 'bg-zinc-700 hover:bg-zinc-600 active:bg-zinc-500 text-white'
+                : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
+            }`}
           >
             Fold
           </button>
