@@ -198,7 +198,6 @@ Gameplay uses short **CC0** and **public domain** clips from `public/sounds/`.
 | Use | File | License / source |
 |-----|------|------------------|
 | Bet, call, raise | `chip-lay-1.ogg`, `chip-lay-2.ogg` | **CC0** — *Casino Audio* by [Kenney](https://www.kenney.nl/) ([OpenGameArt bundle](https://opengameart.org/content/54-casino-sound-effects-cards-dice-chips)). Full text: [`public/sounds/KENNEY-CASINO-AUDIO-LICENSE.txt`](public/sounds/KENNEY-CASINO-AUDIO-LICENSE.txt). |
-| Start game / next hand (riffle-style cards riffling) | `card-fan-2.ogg` (short segment) | Same Kenney *Casino Audio* pack (CC0), as above. |
 | Deal cards (street confirms) | `card-place-1.ogg` (played 3x for flop, 1x for turn/river) | Same Kenney *Casino Audio* pack (CC0), as above. |
 | Fold | `card-place-2.ogg` | Same Kenney *Casino Audio* pack (CC0), as above. |
 | Player goes all-in | `chips-handle-6.ogg` + `chips-collide-3.ogg` (layered) | Same Kenney *Casino Audio* pack (CC0), as above. |

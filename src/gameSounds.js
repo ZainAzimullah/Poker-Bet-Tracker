@@ -137,8 +137,10 @@ export function playFoldSound() {
 }
 
 export function playShuffleSound() {
-  // Use the early riffle transient instead of the full long shuffle tail.
-  playShortClip(SHUFFLE_URL, 0.62, 430, 0.04)
+  // Strong riffle character from later in the clip, layered for impact.
+  playShortClip(SHUFFLE_URL, 1, 760, 0.34)
+  window.setTimeout(() => playShortClip(SHUFFLE_URL, 0.88, 520, 0.46), 70)
+  window.setTimeout(() => playShortClip(SHUFFLE_URL, 0.52, 360, 0.62), 145)
 }
 
 export function playDealCardsSound(count = 1) {

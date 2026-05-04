@@ -5,7 +5,6 @@ import {
   playChipSound,
   playCheckSound,
   playFoldSound,
-  playShuffleSound,
   playDealCardsSound,
   playPotAwardSound,
   playAllInSound,
@@ -44,10 +43,6 @@ function gameReducer(state, action) {
         break
       case 'CHECK':
         playCheckSound()
-        break
-      case 'START_GAME':
-      case 'NEXT_HAND':
-        playShuffleSound()
         break
       case 'CONFIRM_NEXT_STREET':
         // Prevent a delayed second "check" tap from sounding like it's tied to modal OK.
