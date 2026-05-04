@@ -375,6 +375,17 @@ export function reducer(state, action) {
       if (playerIndex < 0) return state
       if (!assertTurn(state, playerIndex, 'FOLD')) return state
 
+      const maxBet = Math.max(0, ...state.players.filter((p) => !p.hasFolded).map((p) => p.currentBet))
+      const player = state.players[playerIndex]
+      if (maxBet === 0) {
+        track('fold_blocked', { reason: 'no_wager', hand_number: state.handNumber })
+        return state
+      }
+      if (player.currentBet >= maxBet) {
+        track('fold_blocked', { reason: 'no_call_required', hand_number: state.handNumber })
+        return state
+      }
+
       track('player_folded', { hand_number: state.handNumber })
       const newPlayers = state.players.map((p) => (p.id === action.id ? { ...p, hasFolded: true } : p))
       return finalizePlayerAction({ ...state }, newPlayers, playerIndex)

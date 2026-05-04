@@ -599,6 +599,41 @@ describe('Betting round closure — last raiser', () => {
   })
 })
 
+describe('FOLD — facing wager only', () => {
+  it('rejects FOLD when there is no wager on the street', () => {
+    const state = makeState({
+      activePlayerIndex: 0,
+      firstActorIndex: 0,
+      currentStreet: 'flop',
+      pot: 0,
+      players: [
+        makePlayer({ id: 1, currentStack: 100, currentBet: 0 }),
+        makePlayer({ id: 2, currentStack: 100, currentBet: 0 }),
+      ],
+    })
+    const next = dispatch(state, { type: 'FOLD', id: 1 })
+    expect(next).toBe(state)
+  })
+
+  it('rejects FOLD when the player has matched the max (can check / BB option)', () => {
+    const state = makeState({
+      currentStreet: 'preflop',
+      smallBlind: 1,
+      bigBlind: 2,
+      dealerIndex: 0,
+      activePlayerIndex: 2,
+      firstActorIndex: 0,
+      players: [
+        makePlayer({ id: 1, currentStack: 100, currentBet: 0 }),
+        makePlayer({ id: 2, currentStack: 99, currentBet: 1 }),
+        makePlayer({ id: 3, currentStack: 98, currentBet: 2 }),
+      ],
+    })
+    const next = dispatch(state, { type: 'FOLD', id: 3 })
+    expect(next).toBe(state)
+  })
+})
+
 describe('Turn enforcement', () => {
   it('ignores PLACE_BET from a non-active player', () => {
     const state = makeState({
@@ -634,9 +669,21 @@ describe('Action advance — activePlayerIndex updates', () => {
     expect(next.activePlayerIndex).toBe(1)
   })
 
-  it('FOLD advances activePlayerIndex', () => {
-    const next = dispatch(threePlayerState, { type: 'FOLD', id: 1 })
-    expect(next.activePlayerIndex).toBe(1)
+  it('FOLD advances activePlayerIndex when facing a wager', () => {
+    const facingBet = makeState({
+      activePlayerIndex: 1,
+      firstActorIndex: 0,
+      currentStreet: 'flop',
+      pot: 10,
+      players: [
+        makePlayer({ id: 1, currentStack: 90, currentBet: 10 }),
+        makePlayer({ id: 2, currentStack: 100, currentBet: 0 }),
+        makePlayer({ id: 3, currentStack: 100, currentBet: 0 }),
+      ],
+    })
+    const next = dispatch(facingBet, { type: 'FOLD', id: 2 })
+    expect(next.players[1].hasFolded).toBe(true)
+    expect(next.activePlayerIndex).toBe(2)
   })
 
   it('PLACE_BET advances activePlayerIndex', () => {

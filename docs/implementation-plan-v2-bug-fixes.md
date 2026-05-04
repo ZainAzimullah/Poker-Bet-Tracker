@@ -54,6 +54,8 @@ So SB/BB assignment alternates every hand, while the visible dealer button shift
 
 **Enforcement:** `PLACE_BET`, `CALL`, `CHECK`, and `FOLD` apply **only** when the resolved player index matches `activePlayerIndex`. Otherwise the reducer returns the prior state (no-op).
 
+**`FOLD`:** Allowed **only** when the player is **facing** an unmatched wager this street: `maxBet > 0` and `currentBet < maxBet` (same condition as **Call**). If there is **no** wager on the street (`maxBet === 0`) or the player **already matched** the max (`currentBet >= maxBet`), **Fold** is illegal — use **Check** or **Bet** / **Raise** instead (including BB preflop option: **Check** or **Raise**, not fold).
+
 **`NEXT_PLAYER`:** Remove entirely—delete the reducer branch and gameplay control (see §4). No dev-only fallback unless you add it back later.
 
 ### 3.4 When the betting round is complete
@@ -94,15 +96,16 @@ Until the user confirms, **no** betting on the next street occurs. Manual **Next
 7. **`PLACE_BET`** — **`targetStreetBet`** = total this street; legacy **`amount`** = increment. Min open / min raise / short all-in rules; **`lastBetSize`** = raise increment over previous max.
 8. **`CHECK`** — Preflop: **BB only**, **`maxBet === bigBlind`** (no raise).
 9. **Turn guards** — `PLACE_BET`, `CALL`, `CHECK`, `FOLD` require **`activePlayerIndex`**; **`turn_violation_attempt`** otherwise.
-10. **`NEXT_PLAYER`** — Removed.
-11. **`isBettingRoundClosed`** — Triggers street prompt when orbit + matched bets.
-12. **`streetAggressionCount`** — Reset on street confirm and **`NEXT_HAND`**.
+10. **`FOLD`** — Only when facing a wager (`maxBet > 0` and player’s `currentBet < maxBet`); otherwise no-op + **`fold_blocked`** (`reason`: **`no_wager`** | **`no_call_required`**).
+11. **`NEXT_PLAYER`** — Removed.
+12. **`isBettingRoundClosed`** — Triggers street prompt when orbit + matched bets (uses **`lastRaisePlayerIndex`** where applicable).
+13. **`streetAggressionCount`** — Reset on street confirm and **`NEXT_HAND`**.
 
 ### 4.2 UI
 
 1. **`SetupScreen`** — **Rotate dealer** (2+ players); gameplay has no rotate.
 2. **`GameplayScreen`** — **`PROMPT_COPY`**: “Deal the flop / turn / river” + deal-then-confirm body; **OK** → **`CONFIRM_NEXT_STREET`**.
-3. **`PlayerCard`** — Active-only; disabled during prompt; **DEALER** / **SMALL BLIND** / **BIG BLIND**; preflop check rules; voluntary chip button rules (**§9**); total-wager helper text.
+3. **`PlayerCard`** — Active-only; disabled during prompt; **DEALER** / **SMALL BLIND** / **BIG BLIND**; preflop check rules; voluntary chip button rules (**§9**); compact **Raise to:** / **Bet to:** + **Minimum:** copy; **Fold** only when **Call** would apply (`showFold === showCall`).
 
 ### 4.3 Tests (`src/__tests__/reducer.test.js`)
 
@@ -115,6 +118,7 @@ Until the user confirms, **no** betting on the next street occurs. Manual **Next
 | **HU `NEXT_HAND`** | **`headsUpStreak`** / dealer cadence. |
 | **initialState shape** | **`headsUpStreak`**, **`firstActorIndex`**, **`pendingStreetPrompt`**, **`streetAggressionCount`**. |
 | **Preflop `CHECK`** | **`describe('CHECK — preflop big blind only')`** — non-BB no-op; BB CHECK advances when `maxBet === bigBlind`. |
+| **`FOLD`** | **`describe('FOLD — facing wager only')`** — no wager / matched max no-op; **`Action advance`** uses facing-bet state for a legal fold. |
 
 ### 4.4 Analytics (`track` in `reducer.js`; helper unchanged in `analytics.js`)
 
@@ -125,6 +129,7 @@ Until the user confirms, **no** betting on the next street occurs. Manual **Next
 | `street_advanced` | **`advanceStreetCore`** (real street change) | `street_name`, `hand_number` |
 | `turn_violation_attempt` | Wrong player | `action_type`, `hand_number` |
 | `dealer_rotate_blocked` | Rotate outside setup | `screen` |
+| `fold_blocked` | Illegal **`FOLD`** (no street wager, or already matched max) | **`reason`**: `no_wager` \| `no_call_required`, `hand_number` |
 | `bet_placed` | **`PLACE_BET`** succeeds | **`bet_amount`** = **chip increment** to pot; `hand_number`, `player_stack` |
 
 **Note:** **`bet_amount`** is always chips added this action, not the UI “total wager” field. Optional future: add **`total_wager`** or **`target_street_bet`** for analysis.
@@ -164,6 +169,7 @@ Until the user confirms, **no** betting on the next street occurs. Manual **Next
 - Streets advance only after legal betting closure + **`CONFIRM_NEXT_STREET`** (modal **OK**).
 - Facing a wager: voluntary control never labelled **Bet**; **Raise** / **N-bet** only when `maxBet > 0`.
 - Preflop **Check** only for **BB** with **no raise** (`maxBet === bigBlind`); reducer and UI aligned.
+- **Fold** only when a **call** is required to continue (`maxBet > 0` and stack behind); reducer and **`PlayerCard`** aligned; **`fold_blocked`** on illegal attempts.
 - **`PLACE_BET`** uses **total street wager** (**`targetStreetBet`**); **`bet_placed.bet_amount`** = chip increment.
 - Seat tags and street modal copy match §9.
 - Tests (**§4.3**) and analytics contract (**§4.4**) documented and passing.
@@ -193,3 +199,4 @@ These extend the baseline plan without replacing core enforcement.
 | **Role labels** | **DEALER**, **SMALL BLIND**, **BIG BLIND**. |
 | **Street prompts** | Titles + body: deal physical cards **then** tap **OK**. |
 | **Min open / raise** | Validated in reducer; short **all-in** raise allowed when stack cannot satisfy full min raise. |
+| **Fold** | Reducer + UI: only when **`showCall`** (facing a higher wager); no fold on a **free check** or **open** street with no bet. |

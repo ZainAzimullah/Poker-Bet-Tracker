@@ -40,6 +40,8 @@ export default function PlayerCard({ player }) {
   const maxBet = Math.max(0, ...activePlayers.map((p) => p.currentBet))
   const callAmount = Math.min(maxBet - player.currentBet, player.currentStack)
   const showCall = maxBet > 0 && player.currentBet < maxBet
+  /** Fold only when facing an unmatched wager (same signal as Call). */
+  const showFold = showCall
 
   const canCheck =
     player.currentBet >= maxBet &&
@@ -261,17 +263,19 @@ export default function PlayerCard({ player }) {
             </button>
           )}
 
-          <button
-            onClick={() => isActive && dispatch({ type: 'FOLD', id: player.id })}
-            disabled={!isActive}
-            className={`flex-1 min-w-[4.5rem] text-sm font-medium rounded-lg py-2.5 transition-colors ${
-              isActive
-                ? 'bg-zinc-700 hover:bg-zinc-600 active:bg-zinc-500 text-white'
-                : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
-            }`}
-          >
-            Fold
-          </button>
+          {showFold && (
+            <button
+              onClick={() => isActive && dispatch({ type: 'FOLD', id: player.id })}
+              disabled={!isActive}
+              className={`flex-1 min-w-[4.5rem] text-sm font-medium rounded-lg py-2.5 transition-colors ${
+                isActive
+                  ? 'bg-zinc-700 hover:bg-zinc-600 active:bg-zinc-500 text-white'
+                  : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
+              }`}
+            >
+              Fold
+            </button>
+          )}
         </div>
       )}
     </div>
