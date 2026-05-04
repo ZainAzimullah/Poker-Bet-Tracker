@@ -3,6 +3,9 @@ import { useGame } from '../App'
 export default function HandCompleteScreen() {
   const { state, dispatch } = useGame()
 
+  const playersWithChips = state.players.filter((p) => !p.bustedOut).length
+  const canStartNextHand = playersWithChips >= 2
+
   const isSplit = state.winnerIds && state.winnerIds.length > 1
   const winners = isSplit
     ? state.players.filter((p) => state.winnerIds.includes(p.id))
@@ -55,11 +58,22 @@ export default function HandCompleteScreen() {
       </div>
 
       <button
+        type="button"
         onClick={() => dispatch({ type: 'NEXT_HAND' })}
-        className="w-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-400 text-white font-semibold rounded-xl py-4 text-sm transition-colors"
+        disabled={!canStartNextHand}
+        className={`w-full font-semibold rounded-xl py-4 text-sm transition-colors ${
+          canStartNextHand
+            ? 'bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-400 text-white'
+            : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
+        }`}
       >
         Start Next Hand
       </button>
+      {!canStartNextHand && (
+        <p className="text-center text-xs text-zinc-500 mt-3">
+          At least two players need chips to continue. Remove busted players on setup or end the session.
+        </p>
+      )}
     </div>
   )
 }

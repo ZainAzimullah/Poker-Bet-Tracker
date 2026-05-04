@@ -7,7 +7,7 @@ export default function EndHandScreen() {
   const [selectedId, setSelectedId] = useState(null)
   const [selectedIds, setSelectedIds] = useState([])
 
-  const activePlayers = state.players.filter((p) => !p.hasFolded)
+  const activePlayers = state.players.filter((p) => !p.hasFolded && !p.bustedOut)
   const foldedPlayers = state.players.filter((p) => p.hasFolded)
 
   function toggleSplitSelect(id) {

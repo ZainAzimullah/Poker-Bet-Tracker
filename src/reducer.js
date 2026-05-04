@@ -23,20 +23,52 @@ let nextId = 1
 
 const NEXT_STREET = { preflop: 'flop', flop: 'turn', turn: 'river', river: null }
 
-export function getBlindIndices(dealerIndex, playerCount, headsUpStreak) {
-  let sb = (dealerIndex + 1) % playerCount
-  let bb = (dealerIndex + 2) % playerCount
-  if (playerCount === 2 && headsUpStreak === 1) {
+/** Seat indices still in the game (not busted out). */
+export function getActiveSeatIndices(players) {
+  const idxs = []
+  for (let i = 0; i < players.length; i++) {
+    if (!players[i].bustedOut) idxs.push(i)
+  }
+  return idxs
+}
+
+/** Next non-busted seat clockwise from current dealer (full table indices). */
+export function nextDealerIndexAfterHand(players, currentDealerIndex) {
+  const len = players.length
+  if (len === 0) return currentDealerIndex
+  for (let i = 1; i <= len; i++) {
+    const idx = (currentDealerIndex + i) % len
+    if (!players[idx].bustedOut) return idx
+  }
+  return currentDealerIndex
+}
+
+/**
+ * SB/BB seats among non-busted players only. Dealer may sit on a busted seat index;
+ * blind seats are computed from the dealer's position in the active ring.
+ */
+export function getBlindIndices(players, dealerIndex, headsUpStreak) {
+  const active = getActiveSeatIndices(players)
+  const n = active.length
+  if (n < 2) {
+    const only = n === 1 ? active[0] : 0
+    return { sbIdx: only, bbIdx: only }
+  }
+  let dPos = active.indexOf(dealerIndex)
+  if (dPos < 0) dPos = 0
+  const sb = active[(dPos + 1) % n]
+  const bb = active[(dPos + 2) % n]
+  if (n === 2 && headsUpStreak === 1) {
     return { sbIdx: bb, bbIdx: sb }
   }
   return { sbIdx: sb, bbIdx: bb }
 }
 
-/** Next seat that may still bet (not folded, not all-in). Null if no one can act. */
+/** Next seat that may still bet (not busted, not folded, not all-in). Null if no one can act. */
 export function nextEligibleIndex(players, fromIndex) {
   const count = players.length
   const canVolitionallyAct = (idx) =>
-    !players[idx].hasFolded && !players[idx].isAllIn
+    !players[idx].bustedOut && !players[idx].hasFolded && !players[idx].isAllIn
 
   for (let i = 1; i <= count; i++) {
     const idx = (fromIndex + i) % count
@@ -46,18 +78,20 @@ export function nextEligibleIndex(players, fromIndex) {
 }
 
 function maxContribution(players) {
-  const active = players.filter((p) => !p.hasFolded)
+  const active = players.filter((p) => !p.hasFolded && !p.bustedOut)
   if (active.length === 0) return 0
   return Math.max(0, ...active.map((p) => p.currentBet))
 }
 
 function needsContributionToMatch(players) {
   const maxBet = maxContribution(players)
-  return players.some((p) => !p.hasFolded && !p.isAllIn && p.currentBet < maxBet)
+  return players.some(
+    (p) => !p.bustedOut && !p.hasFolded && !p.isAllIn && p.currentBet < maxBet,
+  )
 }
 
 function livePlayerCount(players) {
-  return players.filter((p) => !p.hasFolded).length
+  return players.filter((p) => !p.hasFolded && !p.bustedOut).length
 }
 
 /**
@@ -90,11 +124,11 @@ export function isBettingRoundClosed(
 function applyPostBlinds(state) {
   if (!state.smallBlind || !state.bigBlind) return state
   const { players, dealerIndex, smallBlind, bigBlind, headsUpStreak } = state
-  const count = players.length
-  const { sbIdx, bbIdx } = getBlindIndices(dealerIndex, count, headsUpStreak)
+  const { sbIdx, bbIdx } = getBlindIndices(players, dealerIndex, headsUpStreak)
   let pot = state.pot
 
   const newPlayers = players.map((p, idx) => {
+    if (p.bustedOut) return p
     if (idx === sbIdx) {
       const amount = Math.min(smallBlind, p.currentStack)
       const newStack = p.currentStack - amount
@@ -163,10 +197,12 @@ function advanceStreetCore(state) {
   return applySoleActorAutoPasses(partial)
 }
 
-function nextHuState(dealerIndex, headsUpStreak, playerCount) {
-  if (playerCount !== 2) {
+function nextHuState(players, dealerIndex, headsUpStreak) {
+  const active = getActiveSeatIndices(players)
+  const n = active.length
+  if (n !== 2) {
     return {
-      dealerIndex: (dealerIndex + 1) % playerCount,
+      dealerIndex: nextDealerIndexAfterHand(players, dealerIndex),
       headsUpStreak: 0,
     }
   }
@@ -174,7 +210,7 @@ function nextHuState(dealerIndex, headsUpStreak, playerCount) {
     return { dealerIndex, headsUpStreak: 1 }
   }
   return {
-    dealerIndex: (dealerIndex + 1) % 2,
+    dealerIndex: nextDealerIndexAfterHand(players, dealerIndex),
     headsUpStreak: 0,
   }
 }
@@ -227,7 +263,7 @@ function finalizePlayerAction(nextState, newPlayers, actingIndex) {
 function soleVolitionalPlayerIndex(players) {
   let found = null
   for (let i = 0; i < players.length; i++) {
-    if (!players[i].hasFolded && !players[i].isAllIn) {
+    if (!players[i].bustedOut && !players[i].hasFolded && !players[i].isAllIn) {
       if (found !== null) return null
       found = i
     }
@@ -246,6 +282,22 @@ function applySoleActorAutoPasses(state) {
     if (a === null || s.pendingStreetPrompt != null) return s
 
     const ps = s.players
+    if (ps[a].bustedOut) {
+      const next = nextEligibleIndex(ps, a)
+      if (next === null) {
+        if (livePlayerCount(ps) <= 1) {
+          return { ...s, players: ps, activePlayerIndex: null, firstActorIndex: null, pendingStreetPrompt: null }
+        }
+        return maybeStreetPromptAfterRound({
+          ...s,
+          players: ps,
+          activePlayerIndex: null,
+          firstActorIndex: null,
+        })
+      }
+      s = { ...s, players: ps, activePlayerIndex: next }
+      continue
+    }
     if (ps[a].isAllIn) {
       const next = nextEligibleIndex(ps, a)
       if (next === null) {
@@ -266,7 +318,7 @@ function applySoleActorAutoPasses(state) {
     const sole = soleVolitionalPlayerIndex(ps)
     if (sole !== a) return s
 
-    const maxBet = maxContribution(ps.filter((p) => !p.hasFolded))
+    const maxBet = maxContribution(ps)
     if (ps[a].currentBet < maxBet) return s
 
     track('check_selected', { hand_number: s.handNumber, auto_sole_actor: true })
@@ -278,6 +330,10 @@ function applySoleActorAutoPasses(state) {
 function assertTurn(state, playerIndex, actionType) {
   if (state.pendingStreetPrompt != null) return false
   if (state.activePlayerIndex === null) return false
+  if (state.players[playerIndex]?.bustedOut) {
+    track('busted_action_blocked', { action_type: actionType, hand_number: state.handNumber })
+    return false
+  }
   if (state.players[playerIndex]?.isAllIn) {
     track('all_in_action_blocked', { action_type: actionType, hand_number: state.handNumber })
     return false
@@ -300,6 +356,7 @@ export function reducer(state, action) {
         currentBet: 0,
         hasFolded: false,
         isAllIn: false,
+        bustedOut: false,
       }
       track('player_added', { number_of_players: state.players.length + 1 })
       track('buy_in_added', { player_stack: action.buyIn })
@@ -307,7 +364,13 @@ export function reducer(state, action) {
     }
 
     case 'REMOVE_PLAYER': {
-      return { ...state, players: state.players.filter((p) => p.id !== action.id) }
+      const players = state.players.filter((p) => p.id !== action.id)
+      const len = players.length
+      return {
+        ...state,
+        players,
+        dealerIndex: len > 0 ? Math.min(state.dealerIndex, len - 1) : 0,
+      }
     }
 
     case 'SET_BLINDS': {
@@ -316,6 +379,7 @@ export function reducer(state, action) {
     }
 
     case 'START_GAME': {
+      if (state.players.filter((p) => !p.bustedOut).length < 2) return state
       const handNumber = 1
       track('game_started', { number_of_players: state.players.length })
       track('hand_started', { hand_number: handNumber })
@@ -354,7 +418,10 @@ export function reducer(state, action) {
       if (!assertTurn(state, playerIndex, 'PLACE_BET')) return state
 
       const player = state.players[playerIndex]
-      const previousMaxBet = Math.max(0, ...state.players.filter((p) => !p.hasFolded).map((p) => p.currentBet))
+      const previousMaxBet = Math.max(
+        0,
+        ...state.players.filter((p) => !p.hasFolded && !p.bustedOut).map((p) => p.currentBet),
+      )
 
       let target = typeof targetStreetBet === 'number' ? targetStreetBet : null
       if (target == null && typeof action.amount === 'number') {
@@ -387,7 +454,7 @@ export function reducer(state, action) {
         return { ...p, currentStack: newStack, currentBet: newBet, isAllIn: newStack === 0 }
       })
 
-      const newMax = Math.max(0, ...newPlayers.filter((p) => !p.hasFolded).map((p) => p.currentBet))
+      const newMax = Math.max(0, ...newPlayers.filter((p) => !p.hasFolded && !p.bustedOut).map((p) => p.currentBet))
       let streetAggressionCount = state.streetAggressionCount
       if (newMax > previousMaxBet) {
         streetAggressionCount += 1
@@ -416,7 +483,10 @@ export function reducer(state, action) {
       if (playerIndex < 0) return state
       if (!assertTurn(state, playerIndex, 'CALL')) return state
 
-      const maxBet = Math.max(0, ...state.players.filter((p) => !p.hasFolded).map((p) => p.currentBet))
+      const maxBet = Math.max(
+        0,
+        ...state.players.filter((p) => !p.hasFolded && !p.bustedOut).map((p) => p.currentBet),
+      )
       const player = state.players[playerIndex]
       const callAmount = Math.min(maxBet - player.currentBet, player.currentStack)
       if (callAmount <= 0) return state
@@ -445,9 +515,11 @@ export function reducer(state, action) {
       if (playerIndex < 0) return state
       if (!assertTurn(state, playerIndex, 'CHECK')) return state
 
-      const count = state.players.length
-      const { bbIdx } = getBlindIndices(state.dealerIndex, count, state.headsUpStreak ?? 0)
-      const maxBet = Math.max(0, ...state.players.filter((p) => !p.hasFolded).map((p) => p.currentBet))
+      const { bbIdx } = getBlindIndices(state.players, state.dealerIndex, state.headsUpStreak ?? 0)
+      const maxBet = Math.max(
+        0,
+        ...state.players.filter((p) => !p.hasFolded && !p.bustedOut).map((p) => p.currentBet),
+      )
 
       if (state.currentStreet === 'preflop') {
         if (playerIndex !== bbIdx) return state
@@ -463,7 +535,10 @@ export function reducer(state, action) {
       if (playerIndex < 0) return state
       if (!assertTurn(state, playerIndex, 'FOLD')) return state
 
-      const maxBet = Math.max(0, ...state.players.filter((p) => !p.hasFolded).map((p) => p.currentBet))
+      const maxBet = Math.max(
+        0,
+        ...state.players.filter((p) => !p.hasFolded && !p.bustedOut).map((p) => p.currentBet),
+      )
       const player = state.players[playerIndex]
       if (maxBet === 0) {
         track('fold_blocked', { reason: 'no_wager', hand_number: state.handNumber })
@@ -484,7 +559,8 @@ export function reducer(state, action) {
         track('dealer_rotate_blocked', { screen: state.screen })
         return state
       }
-      return { ...state, dealerIndex: (state.dealerIndex + 1) % state.players.length }
+      if (state.players.length === 0) return state
+      return { ...state, dealerIndex: nextDealerIndexAfterHand(state.players, state.dealerIndex) }
     }
 
     case 'CONFIRM_NEXT_STREET': {
@@ -518,9 +594,10 @@ export function reducer(state, action) {
         pendingStreetPrompt: null,
         streetAggressionCount: 0,
         lastRaisePlayerIndex: null,
-        players: state.players.map((p) =>
-          p.id === action.winnerId ? { ...p, currentStack: p.currentStack + state.pot } : p
-        ),
+        players: state.players.map((p) => {
+          const newStack = p.id === action.winnerId ? p.currentStack + state.pot : p.currentStack
+          return { ...p, currentStack: newStack, bustedOut: newStack === 0 }
+        }),
       }
     }
 
@@ -529,6 +606,7 @@ export function reducer(state, action) {
       const share = Math.floor(state.pot / winnerIds.length)
       const remainder = state.pot % winnerIds.length
       track('split_pot_awarded', { split_count: winnerIds.length, pot_amount: state.pot, hand_number: state.handNumber })
+      track('hand_completed', { hand_number: state.handNumber, split_pot: true, split_count: winnerIds.length })
       return {
         ...state,
         screen: 'handComplete',
@@ -542,21 +620,29 @@ export function reducer(state, action) {
         pendingStreetPrompt: null,
         streetAggressionCount: 0,
         lastRaisePlayerIndex: null,
-        players: state.players.map((p) => ({
-          ...p,
-          currentStack: winnerIds.includes(p.id) ? p.currentStack + share : p.currentStack,
-          currentBet: 0,
-          hasFolded: false,
-        })),
+        players: state.players.map((p) => {
+          const newStack = winnerIds.includes(p.id) ? p.currentStack + share : p.currentStack
+          return {
+            ...p,
+            currentStack: newStack,
+            currentBet: 0,
+            hasFolded: false,
+            bustedOut: newStack === 0,
+          }
+        }),
       }
     }
 
     case 'NEXT_HAND': {
+      if (state.players.filter((p) => !p.bustedOut).length < 2) return state
       const handNumber = state.handNumber + 1
-      if (handNumber === 2) track('second_hand_started')
+      if (handNumber === 2) track('second_hand_started', { hand_number: handNumber })
       track('hand_started', { hand_number: handNumber })
-      const n = state.players.length
-      const { dealerIndex: nd, headsUpStreak: nh } = nextHuState(state.dealerIndex, state.headsUpStreak, n)
+      const { dealerIndex: nd, headsUpStreak: nh } = nextHuState(
+        state.players,
+        state.dealerIndex,
+        state.headsUpStreak,
+      )
       const basePlayers = state.players.map((p) => ({
         ...p,
         currentBet: 0,

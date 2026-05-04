@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useGame } from '../App'
+import { getBlindIndices } from '../reducer'
 
 export default function SetupScreen() {
   const { state, dispatch } = useGame()
@@ -46,7 +47,7 @@ export default function SetupScreen() {
   }
 
   function handleStart() {
-    if (state.players.length < 2) return
+    if (state.players.filter((p) => !p.bustedOut).length < 2) return
     const blindErrs = validateBlinds()
     if (Object.keys(blindErrs).length > 0) {
       setErrors((prev) => ({ ...prev, ...blindErrs }))
@@ -62,7 +63,13 @@ export default function SetupScreen() {
     return smallBlind.trim() && bigBlind.trim() && !isNaN(sb) && !isNaN(bb) && sb > 0 && bb >= sb
   })()
 
-  const canStart = state.players.length >= 2 && blindsValid
+  const playersInGame = state.players.filter((p) => !p.bustedOut)
+  const canStart = playersInGame.length >= 2 && blindsValid
+
+  const { sbIdx, bbIdx } =
+    state.players.length > 0
+      ? getBlindIndices(state.players, state.dealerIndex, 0)
+      : { sbIdx: -1, bbIdx: -1 }
 
   return (
     <div className="max-w-md mx-auto px-4 py-10">
@@ -105,21 +112,53 @@ export default function SetupScreen() {
         <div className="mb-6">
           <p className="text-xs text-zinc-500 uppercase tracking-wider mb-3">Players</p>
           <ul className="space-y-2">
-            {state.players.map((p) => (
-              <li key={p.id} className="flex items-center justify-between bg-zinc-900 rounded-xl px-4 py-3">
-                <span className="text-sm font-medium">{p.name}</span>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-zinc-400">${p.startingStack}</span>
-                  <button
-                    onClick={() => dispatch({ type: 'REMOVE_PLAYER', id: p.id })}
-                    className="text-zinc-600 hover:text-zinc-400 text-xs transition-colors"
-                    aria-label="Remove player"
-                  >
-                    ✕
-                  </button>
-                </div>
-              </li>
-            ))}
+            {state.players.map((p, i) => {
+              const role =
+                p.bustedOut
+                  ? null
+                  : i === state.dealerIndex
+                    ? 'DEALER'
+                    : i === sbIdx
+                      ? 'SMALL BLIND'
+                      : i === bbIdx
+                        ? 'BIG BLIND'
+                        : null
+              return (
+                <li
+                  key={p.id}
+                  className={`flex items-center justify-between rounded-xl px-4 py-3 ${
+                    p.bustedOut ? 'bg-zinc-950/80 border border-zinc-800 opacity-60' : 'bg-zinc-900'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 flex-wrap min-w-0">
+                    <span className={`text-sm font-medium ${p.bustedOut ? 'text-zinc-500' : ''}`}>
+                      {p.name}
+                    </span>
+                    {role && (
+                      <span className="text-[10px] font-semibold text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded uppercase tracking-wide whitespace-nowrap">
+                        {role}
+                      </span>
+                    )}
+                    {p.bustedOut && (
+                      <span className="text-[10px] font-semibold text-zinc-500 bg-zinc-800/80 px-1.5 py-0.5 rounded uppercase tracking-wide">
+                        Busted Out
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="text-sm text-zinc-400">${p.currentStack}</span>
+                    <button
+                      type="button"
+                      onClick={() => dispatch({ type: 'REMOVE_PLAYER', id: p.id })}
+                      className="text-zinc-600 hover:text-zinc-400 text-xs transition-colors"
+                      aria-label="Remove player"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </li>
+              )
+            })}
           </ul>
           {state.players.length >= 2 && (
             <button
@@ -127,7 +166,7 @@ export default function SetupScreen() {
               onClick={() => dispatch({ type: 'ROTATE_DEALER' })}
               className="w-full mt-4 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 text-zinc-300 font-medium rounded-xl py-3 text-sm transition-colors"
             >
-              Rotate dealer (seat {state.dealerIndex + 1})
+              Rotate dealer
             </button>
           )}
         </div>
@@ -166,8 +205,8 @@ export default function SetupScreen() {
         disabled={!canStart}
         className={`w-full font-semibold rounded-xl py-4 text-sm transition-colors ${canStart ? 'bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-400 text-white' : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'}`}
       >
-        {state.players.length < 2
-          ? `Add ${2 - state.players.length} more player${2 - state.players.length === 1 ? '' : 's'} to start`
+        {playersInGame.length < 2
+          ? `Need ${2 - playersInGame.length} more player${2 - playersInGame.length === 1 ? '' : 's'} with chips to start`
           : !blindsValid
           ? 'Set blinds to start'
           : 'Start Game'}

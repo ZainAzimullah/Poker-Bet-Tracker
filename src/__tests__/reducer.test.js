@@ -17,6 +17,7 @@ function makePlayer(overrides = {}) {
     currentBet: overrides.currentBet ?? 0,
     hasFolded: overrides.hasFolded ?? false,
     isAllIn: overrides.isAllIn ?? false,
+    bustedOut: overrides.bustedOut ?? false,
   }
 }
 
@@ -1008,6 +1009,57 @@ describe('NEXT_HAND — resets isAllIn', () => {
     })
     const next = dispatch(state, { type: 'NEXT_HAND' })
     next.players.forEach((p) => expect(p.isAllIn).toBe(false))
+  })
+})
+
+describe('Busted out', () => {
+  it('marks players with $0 stack after AWARD_POT', () => {
+    const state = makeState({
+      screen: 'gameplay',
+      pot: 100,
+      players: [
+        makePlayer({ id: 1, currentStack: 0 }),
+        makePlayer({ id: 2, currentStack: 100 }),
+      ],
+    })
+    const next = dispatch(state, { type: 'AWARD_POT', winnerId: 2 })
+    expect(next.players[0].bustedOut).toBe(true)
+    expect(next.players[1].bustedOut).toBe(false)
+    expect(next.players[1].currentStack).toBe(200)
+  })
+
+  it('ignores NEXT_HAND when fewer than two players still have chips', () => {
+    const state = makeState({
+      screen: 'handComplete',
+      handNumber: 1,
+      players: [
+        makePlayer({ id: 1, bustedOut: true, currentStack: 0 }),
+        makePlayer({ id: 2, currentStack: 500 }),
+      ],
+    })
+    const next = dispatch(state, { type: 'NEXT_HAND' })
+    expect(next).toBe(state)
+  })
+
+  it('skips busted seats when posting blinds on NEXT_HAND', () => {
+    const state = makeState({
+      screen: 'handComplete',
+      handNumber: 1,
+      dealerIndex: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      headsUpStreak: 0,
+      players: [
+        makePlayer({ id: 1, bustedOut: true, currentStack: 0 }),
+        makePlayer({ id: 2, currentStack: 100 }),
+        makePlayer({ id: 3, currentStack: 100 }),
+      ],
+    })
+    const next = dispatch(state, { type: 'NEXT_HAND' })
+    expect(next.handNumber).toBe(2)
+    expect(next.players[0].currentBet).toBe(0)
+    expect(next.players[0].currentStack).toBe(0)
+    expect(next.pot).toBe(3)
   })
 })
 

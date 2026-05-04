@@ -23,20 +23,22 @@ export default function PlayerCard({ player }) {
   const [betError, setBetError] = useState('')
 
   const playerIndex = state.players.findIndex((p) => p.id === player.id)
-  const count = state.players.length
 
   const dealerIdx = state.dealerIndex
   const streak = state.headsUpStreak ?? 0
-  const { sbIdx, bbIdx } = getBlindIndices(dealerIdx, count, streak)
+  const { sbIdx, bbIdx } = getBlindIndices(state.players, dealerIdx, streak)
   const roleKey = playerIndex === dealerIdx ? 'D' : playerIndex === sbIdx ? 'SB' : playerIndex === bbIdx ? 'BB' : null
   const role = roleKey ? ROLE_LABEL[roleKey] : null
   const isBB = playerIndex === bbIdx
 
   const streetBlocked = state.pendingStreetPrompt != null
   const isActive =
-    !streetBlocked && state.activePlayerIndex !== null && playerIndex === state.activePlayerIndex
+    !player.bustedOut &&
+    !streetBlocked &&
+    state.activePlayerIndex !== null &&
+    playerIndex === state.activePlayerIndex
 
-  const activePlayers = state.players.filter((p) => !p.hasFolded)
+  const activePlayers = state.players.filter((p) => !p.hasFolded && !p.bustedOut)
   const maxBet = Math.max(0, ...activePlayers.map((p) => p.currentBet))
   const callAmount = Math.min(maxBet - player.currentBet, player.currentStack)
   const showCall = maxBet > 0 && player.currentBet < maxBet
@@ -117,6 +119,22 @@ export default function PlayerCard({ player }) {
     setBettingOpen(false)
     setBetInput('')
     setBetError('')
+  }
+
+  if (player.bustedOut) {
+    return (
+      <div className="bg-zinc-900 rounded-2xl p-4 opacity-50 border border-zinc-800/80">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <p className="font-medium text-sm text-zinc-500">{player.name}</p>
+            <p className="text-xs text-zinc-600 mt-0.5">Stack: $0</p>
+          </div>
+          <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider bg-zinc-800/80 px-2 py-1 rounded-md shrink-0">
+            Busted Out
+          </span>
+        </div>
+      </div>
+    )
   }
 
   if (player.hasFolded) {
