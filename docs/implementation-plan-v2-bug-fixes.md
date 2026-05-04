@@ -140,6 +140,10 @@ Until the user confirms, **no** betting on the next street occurs. Manual **Next
 | `dealer_rotate_blocked` | Rotate outside setup | `screen` |
 | `fold_blocked` | Illegal **`FOLD`** (no street wager, or already matched max) | **`reason`**: `no_wager` \| `no_call_required`, `hand_number` |
 | `bet_placed` | **`PLACE_BET`** succeeds | **`bet_amount`** = **chip increment** to pot; `hand_number`, `player_stack` |
+| `hand_completed` | **`COMPLETE_HAND`** — single winner | `hand_number` |
+| `hand_completed` | **`COMPLETE_HAND`** — split pot | `hand_number`, `split_pot: true`, `split_count` |
+| `second_hand_started` | **`NEXT_HAND`** when `hand_number === 2` | `hand_number` |
+| `busted_action_blocked` | Action while seat **`bustedOut`** | `action_type`, `hand_number` |
 
 **Note:** **`bet_amount`** is always chips added this action, not the UI “total wager” field. Optional future: add **`total_wager`** or **`target_street_bet`** for analysis.
 
@@ -211,3 +215,21 @@ These extend the baseline plan without replacing core enforcement.
 | **Min open / raise** | Validated in reducer; short **all-in** raise allowed when stack cannot satisfy full min raise. |
 | **Fold** | Reducer + UI: only when **`showCall`** (facing a higher wager); no fold on a **free check** or **open** street with no bet. |
 | **All-in / sole actor** | **`nextEligibleIndex`** skips all-in; **`applySoleActorAutoPasses`** auto-checks when only one player can bet and **`currentBet >= maxBet`**; blinds sync **`firstActor`/`active`** after **`applyPostBlinds`**. |
+
+---
+
+## 10. Follow-on product behaviour (bust-out, analytics)
+
+### 10.1 `bustedOut` session state
+
+- After **`COMPLETE_HAND`**, players at **$0** stack can be marked **`bustedOut: true`** (session-scoped).
+- Busted players: excluded from **`NEXT_HAND`** eligibility, blind/dealer rotation, and **`activePlayerIndex`**; tile remains **greyed** on setup/gameplay where applicable.
+- Dispatches from a busted seat while still on gameplay: no-op + **`busted_action_blocked`** (`action_type`, `hand_number`).
+
+### 10.2 Setup role tags
+
+- **`SetupScreen`** shows **DEALER / SMALL BLIND / BIG BLIND** next to each player row (same index math as gameplay) so the group can rotate the button on setup before **Start game**.
+
+### 10.3 Analytics
+
+See **§4.4** for `hand_completed` (single vs split), `second_hand_started`, and `busted_action_blocked`. Events require **`VITE_MIXPANEL_TOKEN`** at build time (`analytics.js`).

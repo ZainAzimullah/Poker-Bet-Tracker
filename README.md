@@ -99,13 +99,13 @@ These are Release 2 and backlog candidates, not oversights. See [roadmap.md](doc
 
 ## Roadmap
 
-![Poker roadmap](docs/images/roadmap.png)
-
 **MVP** — Core tracking loop (this release)
 
-**Release 2** — Blind config, turn order, betting street progression, rules enforcement, split pot
+**Release 2** — Blind config, enforced turn order, street progression (confirm-after-deal modal), rules enforcement (min bet/raise, short all-in raise, BB-only preflop check, fold only when facing a bet), split pot, setup **DEALER/SB/BB** tags + **Rotate dealer**, busted-out session handling
 
 **Backlog** — Side pots, session history, multi-device, seat positions
+
+**Enforcement patch** (turn/street/fold rules, total-street wager input): [implementation-plan-v2-bug-fixes.md](docs/implementation-plan-v2-bug-fixes.md)
 
 See [roadmap.md](docs/roadmap.md) for full detail and the conditions that unlock each release.
 
@@ -131,7 +131,7 @@ See [roadmap.md](docs/roadmap.md) for full detail and the conditions that unlock
 
 **The core loop works.** Users who set up a game complete hands, trust the tracked state, and come back for more. Six hands per active user — double the target — suggests the fundamental bet-tracking hypothesis is validated.
 
-**One friction point is driving most of the pain.** Users expected the bet input to represent the total wager, not the increment to add. Entering the wrong value corrupts the pot total mid-game, which caused at least one session to be abandoned and restarted. This is the highest priority fix.
+**One friction point drove most of the pain in MVP.** Users expected the bet field to match how they think about chips (**total** committed on the street). The shipped Release 2 flow uses **Raise to / Bet to** totals plus a **Minimum** line; the reducer still records **`bet_placed.bet_amount`** as the chip **increment** for funnels.
 
 **Two features are missing and felt.** Both respondents independently raised the same two gaps: a one-touch call action (the app has everything needed to calculate this), and some way to track who is dealer, small blind, and big blind between hands.
 
@@ -139,34 +139,36 @@ See [roadmap.md](docs/roadmap.md) for full detail and the conditions that unlock
 
 | Priority | Change |
 |---|---|
-| 🔴 Immediate | Fix bet input labelling — make clear the field adds to the current bet, not sets it |
-| 🔴 Immediate | Add one-touch Call button — top friction point raised by both respondents |
-| 🟡 Pull forward | Dealer/blind position display + rotate button (display only, no enforcement) |
-| 🟡 Pull forward | Split pot → Release 2 (correctness gap: tied hands can't be resolved in current flow; raised by both respondents) |
-| 🟢 As planned | Turn order, betting streets, blind config, rules enforcement → Release 2 |
+| 🔴 Immediate | Bet input → **total street wager** UX + min validation (see PRD §5.1) |
+| 🔴 Immediate | One-touch Call — shipped |
+| 🟡 Pull forward | Dealer/blind tags on setup + gameplay; rotate **setup only**; auto advance on new hand |
+| 🟡 Pull forward | Split pot — shipped |
+| 🟢 As planned | Enforced turn order, streets + confirm modal, blind config, rules — shipped (see [bug-fixes plan](docs/implementation-plan-v2-bug-fixes.md)) |
 | 🟢 As planned | All-in shortcut, side pots, history → Backlog |
 
 ---
 
-## Release 2
+## Release 2 (shipped)
 
-**Full PRD:** [prd-v2.md](docs/prd-v2.md)
+**Full PRD:** [prd-v2.md](docs/prd-v2.md)  
+**Enforcement & follow-on behaviour:** [implementation-plan-v2-bug-fixes.md](docs/implementation-plan-v2-bug-fixes.md)
 
-The post-MVP review validated the core loop and surfaced four things to address before the next layer of structure.
+The post-MVP review validated the core loop; Release 2 and the v2 **enforcement patch** address correctness, friction, and poker-shaped structure.
 
-**What's being fixed first (Layer 1)**
-- Bet input labelling — the additive model wasn't communicated clearly, causing users to enter the total wager instead of the increment and corrupt the pot mid-game
-- One-touch Call button — both respondents raised manual call entry as friction; the app already has everything needed to calculate it
-- Dealer / SB / BB position display with per-hand rotation — raised independently by both respondents as a social coordination problem, not a rules request
-- Split pot — a correctness gap in the end-hand flow; tied hands currently can't be resolved within the app
+**Layer 1 (correctness & friction)**
+- **Total street wager** input (**Raise to / Bet to**) with **Minimum:** line; pot integrity preserved via reducer increments
+- One-touch **Call** (and capped all-in call)
+- **DEALER / SMALL BLIND / BIG BLIND** on setup and gameplay; **Rotate dealer** on setup only; button advances on **Start next hand** (incl. heads-up stagger)
+- **Split pot** in end-hand flow; odd-chip remainder stays in pot
 
-**What's being added next (Layer 2)**
-- Turn order and active player indicator
-- Betting street display and progression (Pre-flop → Flop → Turn → River)
-- Blind level configuration
-- Minimum bet enforcement
-- All-in stack constraints
-- Check prevention when an unmatched wager exists
+**Layer 2 + enforcement**
+- Enforced **active player**; no advisory “next player” bypass
+- **Streets** with a blocking **deal-then-OK** modal (no manual street skip)
+- Blind config + auto posting
+- Min open / min raise + **short all-in raise**; stack-capped bets; all-in seats cannot act
+- **Check** rules: no check facing a bet; preflop **BB-only** check when unraised
+- **Fold** only when a call is owed
+- **Busted-out** players ($0 after a hand) sit out the rest of the session (greyed), with guards + **`busted_action_blocked`**
 
 ---
 
@@ -178,7 +180,7 @@ The post-MVP review validated the core loop and surfaced four things to address 
 | Styling | Tailwind CSS |
 | State management | React state / useReducer |
 | Backend | None — client-side only |
-| Analytics | Mixpanel |
+| Analytics | Mixpanel (optional — set `VITE_MIXPANEL_TOKEN` from `.env.example`) |
 | Deployment | Vercel |
 
 ---
@@ -199,6 +201,8 @@ npm run dev
 ```
 
 Open [http://localhost:5173](http://localhost:5173) in your browser.
+
+For analytics in local or production builds, copy `.env.example` to `.env` and set `VITE_MIXPANEL_TOKEN`.
 
 | Command | Description |
 |---|---|

@@ -45,25 +45,25 @@ This means:
 All betting rules enforcement, blind structures, turn order, side pots, and history. See `prd.md` for full out-of-scope list.
 
 ### MVP status
-MVP success metrics have been met. See `findings-and-recommendations.md` for the full post-MVP review. A patch is shipping before Release 2 to address a correctness issue and two high-friction gaps surfaced by that review.
+MVP success metrics have been met. See `findings-and-recommendations.md` for the full post-MVP review. The **Immediate Patch** items, **Release 2** scope, and the **v2 enforcement patch** (`implementation-plan-v2-bug-fixes.md`) are **shipped** — total-street wager UX, Call, role tags, split pot, enforced turns, street confirmation modal, blind posting, and core raise/check/fold guardrails.
 
 ---
 
 ## Immediate Patch — Correctness & High-Friction Fixes
 
-**Goal:** Fix a tracked-state correctness issue and two friction points that emerged from post-MVP user feedback before building on top of the MVP.
+**Goal:** Fix tracked-state correctness and high-friction gaps from post-MVP feedback. **Status: shipped** (evolved into total-wager UX rather than “increment only” labelling).
 
 **What's included**
 
 | Area | Work |
 |---|---|
-| Bet input UX | Fix additive bet input labelling — display current maximum wager and label the field *Amount to add* so users enter the increment, not the total wager |
-| Actions | Add a one-touch Call button that auto-calculates the difference between the current maximum bet and the acting player's current bet |
-| Position display | Add dealer / SB / BB role display with a rotate button at end of hand (display only — no enforcement or configuration) |
+| Bet input UX | **Total wager for the current street** — *Raise to* / *Bet to* with **Minimum:** and validation; reducer records chip increment to pot |
+| Actions | One-touch **Call** (incl. all-in call) |
+| Position display | **DEALER / SB / BB** on setup and gameplay; **Rotate dealer** on **setup only**; automatic rotation on each new hand (`NEXT_HAND`), not a manual “end of hand only” rotate |
 
-**Why now, not Release 2**
+**Why it landed before full enforcement**
 
-The bet input issue is a correctness problem: users entering the total wager instead of the increment get a wrong pot total, which is the opposite of what the product exists to provide. It caused at least one mid-session restart in post-MVP testing. The call button and position display address the two most consistently cited friction points in user feedback and are self-contained additions that do not require Release 2 infrastructure.
+Call and clearer betting input are self-contained. Role display on setup lets the table align the phone before **Start game**; enforcement then locks turn order and streets without mid-hand dealer edits.
 
 ---
 
@@ -71,22 +71,22 @@ The bet input issue is a correctness problem: users entering the total wager ins
 
 **Goal:** Make the app feel more like real poker by adding turn awareness, betting streets, and rule guardrails.
 
-**Trigger:** Immediate patch shipped. Continued feedback pointing to friction around turn order and betting constraints.
+**Trigger:** Met — Immediate patch + Release 2 + enforcement patch shipped.
 
 ### Candidates
 
 | Area | Features |
 |---|---|
-| Configuration | Configure blind levels, max buy-in, max number of players |
-| Gameplay support | Show player positions, show current betting street, show whose turn it is |
-| Blind posting | Automatic deduction of SB and BB from player stacks at the start of each hand |
-| Rules enforcement | Enforce minimum bet, constrain bets/raises to all-in when needed, prevent checking on existing wager, progress to next player, progress to next betting street |
-| End hand | Split pot — equal division when both players hold equivalent winning hands |
+| Configuration | Configure blind levels (max buy-in / max players remain roadmap candidates) |
+| Gameplay support | Role tags, current betting street, **enforced** active player (no manual next-player bypass) |
+| Blind posting | Automatic SB/BB deduction at hand start |
+| Rules enforcement | Min open/raise (with short all-in raise), stack caps, check/fold legality, street advance only after round closes + **confirm modal** |
+| End hand | Split pot — equal division; odd chip remains in pot |
 
-**Note on split pot vs side pots:** Split pot (equal division of the main pot between tied players) is a correctness gap — it can arise in any heads-up game and cannot currently be resolved within the app. Side pots (created when players go all-in with different stack depths in multi-way hands) are a separate, more complex problem and remain in the backlog.
+**Note on split pot vs side pots:** **Split pot** is implemented. **Side pots** (multi-way all-ins with unequal stacks) remain backlog.
 
 ### Prioritisation guidance
-Start with **turn order and whose turn it is** — this is the most commonly raised gap in informal play and directly reduces game friction. Blind level configuration and automatic blind posting follow (blind config must ship before posting, since posting depends on knowing the configured amounts). Rules enforcement (min bet, check prevention, all-in constraints) comes last.
+Historical sequencing: turn enforcement and streets, then blind config/posting, then bet-rule validation. See `implementation-plan-v2.md` and `implementation-plan-v2-bug-fixes.md` for what actually shipped.
 
 ---
 
@@ -101,28 +101,30 @@ These are validated ideas that are not yet prioritised. They should be revisited
 | History | Betting history, player history, store past sessions |
 | Multi-player | Multi-device support |
 | Configuration | Templates, player photos |
-| Rules | Raise-size enforcement (at least size of previous bet), all-in shortcut |
+| Rules | Full tournament raise-reopen rules, all-in shortcut, cap games |
 
 ---
 
 ## Roadmap at a Glance
 
 ```
-DONE        IMMEDIATE PATCH      RELEASE 2            LATER
-──────────  ───────────────────  ──────────────────   ──────────────────────────
-MVP         Patch                Release 2            Backlog
+DONE (incl. enforcement)     LATER
+──────────────────────────   ──────────────────────────
+MVP + Patch + Release 2      Backlog
 
-Add         Fix bet input        Blind config         Side pots
-players     labelling            Max buy-in config    Blind rotation
-Buy-ins     One-touch Call       Max players          Seat positions
-Pot         Dealer/SB/BB         Player positions     Betting history
-tracking    display +            Betting streets      Player history
-Stack       rotate button        Turn progression     Past sessions
-tracking                         Min bet enforcement  Multi-device
-Bet logging                      All-in constraints   Templates / photos
-Check /                          Check prevention     Raise-size enforcement
-Bet / Fold                       Auto blind posting
-Award pot                        Split pot
+Add players / buy-ins          Side pots
+Pot / stack / bet logging      Seat positions / history
+Total-street wager + Min       Multi-device
+One-touch Call               Templates / photos
+DEALER/SB/BB (setup+play)      Full reopening / cap rules
+Rotate dealer (setup only)     Advanced pot logic
+Enforced turn order
+Streets + deal-then-OK modal
+Blind config + auto post
+Min bet/raise + short AI raise
+Check/fold rules (BB pre OK)
+Split pot
+Busted-out session handling
 ```
 
 ---
@@ -130,13 +132,13 @@ Award pot                        Split pot
 ## Decision Checkpoints
 
 ### After MVP launch ✅ (complete)
-Post-MVP review completed. See `findings-and-recommendations.md`. Core loop metrics met. Bet input correctness issue and two high-friction gaps identified — addressed in the Immediate Patch.
+Post-MVP review completed. See `findings-and-recommendations.md`. Core loop metrics met.
 
-### After Immediate Patch ships
-Confirm the bet input confusion is resolved (no further mid-session restarts). Re-check likelihood-to-use signal across new sessions. If clean, proceed to Release 2.
+### After Immediate Patch ✅
+Shipped: total-wager bet UX, Call, role tags (setup + play), split pot foundation.
 
-### Before committing to Release 2
-Confirm that the gap users are feeling is about **structure and rules** (turn order, blinds) rather than **interface clarity**. If it's the latter, fix before building on top of it.
+### Release 2 + enforcement ✅
+Shipped: enforced turns, street modal, blind posting, min raise rules, fold/check guards, busted-out handling. Monitor Mixpanel for **`turn_violation_attempt`**, **`fold_blocked`**, and session depth.
 
 ### Before investing in backlog items
 Validate engagement depth: are users averaging ≥ 3 hands per session? If not, more history and configuration features won't help — the core loop needs attention first.
