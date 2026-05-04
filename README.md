@@ -101,7 +101,7 @@ These are Release 2 and backlog candidates, not oversights. See [roadmap.md](doc
 
 **MVP** — Core tracking loop (this release)
 
-**Release 2** — Blind config, turn order, betting street progression, rules enforcement
+**Release 2** — Blind config, turn order, betting street progression, rules enforcement, split pot
 
 **Backlog** — Side pots, session history, multi-device, seat positions
 
