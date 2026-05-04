@@ -6,6 +6,8 @@ const CHIP_URLS = ['/sounds/chip-lay-1.ogg', '/sounds/chip-lay-2.ogg']
 const FOLD_URL = '/sounds/card-place-2.ogg'
 const KNOCK_URL = '/sounds/door-knock-0095.ogg'
 const POT_AWARD_URL = '/sounds/chips-handle-5.ogg'
+const ALL_IN_URL = '/sounds/chips-handle-6.ogg'
+const ALL_IN_LAYER_URL = '/sounds/chips-collide-3.ogg'
 
 function playOgg(url, volume) {
   if (typeof window === 'undefined') return
@@ -64,6 +66,17 @@ export function playFoldSound() {
 
 export function playPotAwardSound() {
   playOgg(POT_AWARD_URL, 0.55)
+}
+
+export function playAllInSound() {
+  // Multi-layer burst so it sounds like 2-3 piles being shoved in.
+  playOgg(ALL_IN_URL, 0.62)
+  window.setTimeout(() => playOgg(ALL_IN_LAYER_URL, 0.45), 25)
+  window.setTimeout(() => playOgg(ALL_IN_URL, 0.35), 65)
+  window.setTimeout(() => playOgg(ALL_IN_LAYER_URL, 0.28), 105)
+  window.setTimeout(() => playOgg(ALL_IN_URL, 0.42), 150)
+  window.setTimeout(() => playOgg(ALL_IN_LAYER_URL, 0.33), 195)
+  window.setTimeout(() => playOgg(ALL_IN_URL, 0.26), 240)
 }
 
 /**

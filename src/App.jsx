@@ -1,7 +1,13 @@
 import { useReducer, createContext, useContext, useEffect } from 'react'
 import { reducer, initialState } from './reducer'
 import { track } from './analytics'
-import { playChipSound, playCheckSound, playFoldSound, playPotAwardSound } from './gameSounds'
+import {
+  playChipSound,
+  playCheckSound,
+  playFoldSound,
+  playPotAwardSound,
+  playAllInSound,
+} from './gameSounds'
 import SetupScreen from './screens/SetupScreen'
 import GameplayScreen from './screens/GameplayScreen'
 import EndHandScreen from './screens/EndHandScreen'
@@ -16,6 +22,16 @@ export function useGame() {
 function gameReducer(state, action) {
   const next = reducer(state, action)
   if (next !== state) {
+    const prevAllIn = state.players?.filter((p) => p.isAllIn).length ?? 0
+    const nextAllIn = next.players?.filter((p) => p.isAllIn).length ?? 0
+    const becameAllIn =
+      (action.type === 'PLACE_BET' || action.type === 'CALL') && nextAllIn > prevAllIn
+
+    if (becameAllIn) {
+      playAllInSound()
+      return next
+    }
+
     switch (action.type) {
       case 'PLACE_BET':
       case 'CALL':
