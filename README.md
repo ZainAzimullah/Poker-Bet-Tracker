@@ -99,15 +99,13 @@ These are Release 2 and backlog candidates, not oversights. See [roadmap.md](doc
 
 ## Roadmap
 
-**MVP** — Core tracking loop
+| Release | Status | Focus |
+|---|---|---|
+| **MVP** | ✅ Shipped | Core loop — add players, track stacks/bets/pot, check/bet/fold, end-hand flow |
+| **Release 2** | ✅ Shipped | UX polish, dealer/blind tracking, street progression, rules enforcement |
+| **Backlog** | Planned | Side pots, session history, multi-device support, seat positions |
 
-**Release 2** — Blind config, enforced turn order, street progression (confirm-after-deal modal), rules enforcement (min bet/raise, short all-in raise, BB-only preflop check, fold only when facing a bet), split pot, setup **DEALER/SB/BB** tags + **Rotate dealer**, busted-out session handling
-
-**Backlog** — Side pots, session history, multi-device, seat positions
-
-**Enforcement patch** (turn/street/fold rules, total-street wager input): [implementation-plan-v2-bug-fixes.md](docs/implementation-plan-v2-bug-fixes.md)
-
-See [roadmap.md](docs/roadmap.md) for full detail and the conditions that unlock each release.
+See [roadmap.md](docs/roadmap.md) for the full release strategy and the conditions that unlock each release.
 
 ---
 
@@ -146,10 +144,10 @@ See [roadmap.md](docs/roadmap.md) for full detail and the conditions that unlock
 | Priority | Change |
 |---|---|
 | 🔴 Immediate | Bet input → **total street wager** UX + min validation (see PRD §5.1) |
-| 🔴 Immediate | One-touch Call — shipped |
+| 🔴 Immediate | One-touch Call |
 | 🟡 Pull forward | Dealer/blind tags on setup + gameplay; rotate **setup only**; auto advance on new hand |
-| 🟡 Pull forward | Split pot — shipped |
-| 🟢 As planned | Enforced turn order, streets + confirm modal, blind config, rules — shipped (see [bug-fixes plan](docs/implementation-plan-v2-bug-fixes.md)) |
+| 🟡 Pull forward | Split pot |
+| 🟢 As planned | Enforced turn order, streets + confirm modal, blind config, rules (see [bug-fixes plan](docs/implementation-plan-v2-bug-fixes.md)) |
 | 🟢 As planned | All-in shortcut, side pots, history → Backlog |
 
 ---
@@ -157,24 +155,28 @@ See [roadmap.md](docs/roadmap.md) for full detail and the conditions that unlock
 ## Release 2 (shipped)
 
 **Full PRD:** [prd-v2.md](docs/prd-v2.md)  
-**Enforcement & follow-on behaviour:** [implementation-plan-v2-bug-fixes.md](docs/implementation-plan-v2-bug-fixes.md)
+**Rules enforcement detail:** [implementation-plan-v2-bug-fixes.md](docs/implementation-plan-v2-bug-fixes.md)
 
-The post-MVP review validated the core loop; Release 2 and the v2 **enforcement patch** address correctness, friction, and poker-shaped structure.
+The post-MVP user test validated the core loop and surfaced two clear gaps: a confusing bet input and no way to track dealer/blind positions. Release 2 fixes both and adds full rules enforcement.
 
-**Layer 1 (correctness & friction)**
-- **Total street wager** input (**Raise to / Bet to**) with **Minimum:** line; pot integrity preserved via reducer increments
-- One-touch **Call** (and capped all-in call)
-- **DEALER / SMALL BLIND / BIG BLIND** on setup and gameplay; **Rotate dealer** on setup only; button advances on **Start next hand** (incl. heads-up stagger)
-- **Split pot** in end-hand flow; odd-chip remainder stays in pot
+**UX and friction fixes**
+- **Raise to / Bet to** input — enter your total street wager, not an increment; a **Minimum:** hint shows the min open or re-raise
+- One-touch **Call** button, capped to all-in when the stack is short
+- **Split pot** — select multiple winners in the end-hand flow; any odd chip carries forward into the next pot
 
-**Layer 2 + enforcement**
-- Enforced **active player**; no advisory “next player” bypass
-- **Streets** with a blocking **deal-then-OK** modal (no manual street skip)
-- Blind config + auto posting
-- Min open / min raise + **short all-in raise**; stack-capped bets; all-in seats cannot act
-- **Check** rules: no check facing a bet; preflop **BB-only** check when unraised
-- **Fold** only when a call is owed
-- **Busted-out** players ($0 after a hand) sit out the rest of the session (greyed), with guards + **`busted_action_blocked`**
+**Dealer and blind tracking**
+- **DEALER / SB / BB** tags on player cards during setup and gameplay
+- **Rotate dealer** on the setup screen; the button auto-advances at the start of each new hand
+- Blind config — set SB/BB amounts; blinds post automatically at hand start
+
+**Rules enforcement**
+- Enforced active player — only the current player can act
+- **Streets** — Preflop → Flop → Turn → River, each gated by a deal-then-confirm modal before action resumes
+- Min open-raise and min re-raise enforced; short all-in raises handled correctly
+- Stack-capped bets — cannot bet or call more than remaining stack; all-in players skip their turn
+- **Check** blocked when facing a live bet; BB-only check allowed preflop when unraised
+- **Fold** only available when a call is owed
+- **Busted players** (stack reaches $0 after a hand) sit out the rest of the session
 
 ---
 
