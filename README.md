@@ -35,6 +35,7 @@ A lightweight mobile web app for tracking poker bets, stacks, and pots during ca
 |---|---|
 | Analytics | [Mixpanel Dashboard](https://mixpanel.com/p/65kHTYq3rAT8VAvK5Es1Q2) |
 | User Feedback | [Feedback Form](https://docs.google.com/forms/d/e/1FAIpQLSfEjYABmkLZCA-GHMYz_qO0tPQD1e-WqhakBQ-in3KlVz4qmA/viewform) |
+| Findings and Recommendations | [Full Report](docs/findings-and-recommendations.md) |
 
 ---
 
@@ -105,6 +106,44 @@ These are Release 2 and backlog candidates, not oversights. See [roadmap.md](doc
 **Backlog** — Side pots, session history, multi-device, seat positions
 
 See [roadmap.md](docs/roadmap.md) for full detail and the conditions that unlock each release.
+
+---
+
+## User Test Findings
+
+**Data sources:** Mixpanel (Apr 18 – May 4, 2026) · Post-session survey (n=2) · Follow-up interview  
+**Full report:** [findings-and-recommendations.md](docs/findings-and-recommendations.md)
+
+### MVP Metric Results
+
+| Goal | Metric | Target | Result | Status |
+|---|---|---|---|---|
+| Users start a game | % users who add players | ≥ 80% | 36%* | — |
+| Users begin gameplay | % users who start 1+ hand | ≥ 70% | 100% | ✅ |
+| Core loop engagement | % started hands with 1+ bet placed | ≥ 85% | 100% | ✅ |
+| Core loop completion | % started hands completed | ≥ 75% | 75% | ✅ |
+| Engagement depth | Avg hands completed per active user | ≥ 3 | **6** | ✅ |
+| Early retention | % users who complete a second hand | ≥ 60% | 100% | ✅ |
+
+*The 36% figure is an artefact of mid-session restarts caused by bet input confusion (see below), not a setup UX problem. The funnel from player added onward converts at 100%.
+
+### Key Findings
+
+**The core loop works.** Users who set up a game complete hands, trust the tracked state, and come back for more. Six hands per active user — double the target — suggests the fundamental bet-tracking hypothesis is validated.
+
+**One friction point is driving most of the pain.** Users expected the bet input to represent the total wager, not the increment to add. Entering the wrong value corrupts the pot total mid-game, which caused at least one session to be abandoned and restarted. This is the highest priority fix.
+
+**Two features are missing and felt.** Both respondents independently raised the same two gaps: a one-touch call action (the app has everything needed to calculate this), and some way to track who is dealer, small blind, and big blind between hands.
+
+### What Changes in the Roadmap
+
+| Priority | Change |
+|---|---|
+| 🔴 Immediate | Fix bet input labelling — make clear the field adds to the current bet, not sets it |
+| 🔴 Immediate | Add one-touch Call button — top friction point raised by both respondents |
+| 🟡 Pull forward | Dealer/blind position display + rotate button (display only, no enforcement) |
+| 🟢 As planned | Turn order, betting streets, blind config, rules enforcement → Release 2 |
+| 🟢 As planned | Split pot, all-in shortcut, history → Backlog |
 
 ---
 
