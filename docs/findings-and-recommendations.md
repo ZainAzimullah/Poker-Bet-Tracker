@@ -83,15 +83,27 @@ Both respondents independently flagged entering a call amount manually as fricti
 
 Both respondents raised this independently. One described it as something they *really struggled with* and came back to it in the closing question after the rest of the survey. The specific pain is not about rules enforcement — it is the social coordination problem of remembering who holds which role after each hand. Both mentioned it explicitly in their missing features list.
 
+### Split pot
+
+Both respondents flagged the absence of a split pot option, making it the third most consistently raised gap after blind/dealer tracking and the call button. The primary user was specific about the scenario:
+
+> *Can't split pot when both players have the same winning hand.*
+
+This is not a missing convenience feature — it is a correctness gap. In heads-up play, when both players hold equivalent winning hands, the pot must be divided equally. The current end-hand flow only supports awarding the full pot to one player, which means a tie cannot be resolved correctly within the app. Any user who encounters a split pot is forced to either estimate manually or exit the app to do the maths themselves, undermining the core promise of accurate tracking.
+
+The second respondent echoed this: *"The ability to automate calls, all in, tracking big blind / small blind & splitting the pot."*
+
+Unlike side pots — which only arise in multi-way all-in situations and add meaningful complexity — a split pot in heads-up play is a straightforward calculation (pot ÷ 2, distributed to both players) and a relatively frequent occurrence. It belongs in the same correctness tier as the bet input fix.
+
 ### Missing features (ranked by frequency)
 
 | Feature | Respondents |
 |---|---|
 | Blind/dealer position tracking (who is SB/BB/button) | Both |
 | Quick call action (one-touch) | Both |
+| Split pot | Both |
 | Automatic blind posting | 1 |
 | All-in shortcut | 1 |
-| Split pot | 1 |
 
 ### Likelihood to use again
 Ratings: 3/5 and 1/5. The 1/5 came from a passive participant who was not tracking the game. The 3/5 from the primary user is the more meaningful signal — the app is functional but not yet compelling enough to recommend without reservation. Resolving the bet input issue and adding a call action is likely to move this meaningfully.
@@ -130,9 +142,15 @@ A minimal implementation — display of who is dealer, SB, and BB, with a rotate
 
 The survey does not show users failing to complete hands because of missing turn structure. Hand completion is at 75% — at target — without any enforcement. These features add structure and polish but are not currently blocking usage. They remain appropriate for Release 2.
 
-#### 🟢 Keep in backlog: Split pot, all-in shortcut
+#### 🔴 Pull forward: Split pot into Release 2
 
-One respondent mentioned each. Legitimate future requests, but neither was a blocker. Revisit if they surface consistently across more sessions and users.
+Both respondents raised split pot independently. More importantly, it is a correctness gap, not a missing feature: when two players hold equivalent winning hands, the pot cannot be accurately resolved within the current end-hand flow. Heads-up play is the most common configuration for this app's target user, and ties are a regular occurrence. A split pot for two players is a simple equal division — it requires no complex side-pot logic and can ship as part of Release 2.
+
+Note the distinction from **side pots**, which remain in the backlog. Side pots only arise in multi-way all-in situations with different stack depths — significantly more complex and less frequently encountered in casual play. Split pots are the simpler, higher-impact problem to solve first.
+
+#### 🟢 Keep in backlog: All-in shortcut
+
+One respondent mentioned this. Legitimate future request, but not a blocker. Revisit if it surfaces consistently across more sessions and users.
 
 ---
 
@@ -147,17 +165,18 @@ IMMEDIATE (patch before Release 2)
 - Add dealer/blind position display + rotate button
   (display only — no enforcement or configuration)
 
-RELEASE 2 (as planned)
+RELEASE 2 (updated)
 ────────────────────────────────────────────────────
 - Blind level configuration
 - Turn order and whose turn it is
 - Betting street progression
 - Minimum bet enforcement
 - All-in constraints and blind posting
+- Split pot (correctness gap — equal division for tied hands)
 
 BACKLOG (unchanged)
 ────────────────────────────────────────────────────
-- Split pot
+- Side pots (multi-way all-in — distinct from split pot)
 - All-in shortcut
 - Automatic blind posting
 - Session and hand history

@@ -80,6 +80,9 @@ The bet input issue is a correctness problem: users entering the total wager ins
 | Configuration | Configure blind levels, max buy-in, max number of players |
 | Gameplay support | Show player positions, show current betting street, show whose turn it is |
 | Rules enforcement | Enforce minimum bet, constrain bets/raises to all-in when needed, prevent checking on existing wager, progress to next player, progress to next betting street |
+| End hand | Split pot — equal division when both players hold equivalent winning hands |
+
+**Note on split pot vs side pots:** Split pot (equal division of the main pot between tied players) is a correctness gap — it can arise in any heads-up game and cannot currently be resolved within the app. Side pots (created when players go all-in with different stack depths in multi-way hands) are a separate, more complex problem and remain in the backlog.
 
 ### Prioritisation guidance
 Start with **turn order and whose turn it is** — this is the most commonly raised gap in informal play and directly reduces game friction. Blind level configuration and automatic blind posting follow. Rules enforcement (min bet, check prevention, all-in constraints) comes last.
@@ -92,7 +95,7 @@ These are validated ideas that are not yet prioritised. They should be revisited
 
 | Area | Ideas |
 |---|---|
-| Advanced pot logic | Side pot support, split pots, multi-way all-in handling |
+| Advanced pot logic | Side pot support, multi-way all-in handling |
 | Game structure | Blind and button positioning, automatic blind rotation, seat positions |
 | History | Betting history, player history, store past sessions |
 | Multi-player | Multi-device support |
@@ -118,7 +121,7 @@ tracking                         Min bet enforcement  Multi-device
 Bet logging                      All-in constraints   Templates / photos
 Check /                          Check prevention     Raise-size enforcement
 Bet / Fold                       Auto blind posting
-Award pot
+Award pot                        Split pot
 ```
 
 ---

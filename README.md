@@ -140,8 +140,9 @@ See [roadmap.md](docs/roadmap.md) for full detail and the conditions that unlock
 | 🔴 Immediate | Fix bet input labelling — make clear the field adds to the current bet, not sets it |
 | 🔴 Immediate | Add one-touch Call button — top friction point raised by both respondents |
 | 🟡 Pull forward | Dealer/blind position display + rotate button (display only, no enforcement) |
+| 🟡 Pull forward | Split pot → Release 2 (correctness gap: tied hands can't be resolved in current flow; raised by both respondents) |
 | 🟢 As planned | Turn order, betting streets, blind config, rules enforcement → Release 2 |
-| 🟢 As planned | Split pot, all-in shortcut, history → Backlog |
+| 🟢 As planned | All-in shortcut, side pots, history → Backlog |
 
 ---
 
