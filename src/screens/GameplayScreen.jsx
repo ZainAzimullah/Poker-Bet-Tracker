@@ -8,10 +8,19 @@ const STREET_LABEL = {
   river: 'River',
 }
 
-const PROMPT_TITLE = {
-  flop: 'Deal Flop',
-  turn: 'Deal Turn',
-  river: 'Deal River',
+const PROMPT_COPY = {
+  flop: {
+    title: 'Deal the flop',
+    body: 'Physically deal the three flop cards, then confirm here once they are on the table.',
+  },
+  turn: {
+    title: 'Deal the turn',
+    body: 'Deal the turn card, then confirm here once it has been placed.',
+  },
+  river: {
+    title: 'Deal the river',
+    body: 'Deal the river card, then confirm here once it has been placed.',
+  },
 }
 
 export default function GameplayScreen() {
@@ -22,7 +31,7 @@ export default function GameplayScreen() {
 
   return (
     <div className="max-w-md mx-auto px-4 py-8 relative">
-      {pending && (
+      {pending && PROMPT_COPY[pending] && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
           role="dialog"
@@ -31,10 +40,10 @@ export default function GameplayScreen() {
         >
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 max-w-sm w-full shadow-xl">
             <h2 id="street-prompt-title" className="text-lg font-semibold text-center mb-2">
-              {PROMPT_TITLE[pending]}
+              {PROMPT_COPY[pending].title}
             </h2>
-            <p className="text-sm text-zinc-400 text-center mb-6">
-              When the board is ready, confirm to continue betting.
+            <p className="text-sm text-zinc-400 text-center mb-6 leading-relaxed">
+              {PROMPT_COPY[pending].body}
             </p>
             <button
               type="button"

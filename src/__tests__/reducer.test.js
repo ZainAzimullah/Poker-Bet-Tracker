@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('../analytics', () => ({ track: vi.fn() }))
 
-import { reducer, initialState } from '../reducer'
+import { reducer, initialState, nextEligibleIndex } from '../reducer'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -509,6 +509,96 @@ describe('POST_BLINDS', () => {
 // Step 6 — Turn order (activePlayerIndex)
 // ---------------------------------------------------------------------------
 
+describe('CHECK — preflop big blind only', () => {
+  it('rejects CHECK for a non-big-blind player', () => {
+    const state = makeState({
+      currentStreet: 'preflop',
+      smallBlind: 1,
+      bigBlind: 2,
+      dealerIndex: 0,
+      activePlayerIndex: 0,
+      firstActorIndex: 0,
+      headsUpStreak: 0,
+      players: [
+        makePlayer({ id: 1, currentStack: 100, currentBet: 0 }),
+        makePlayer({ id: 2, currentStack: 99, currentBet: 1 }),
+        makePlayer({ id: 3, currentStack: 98, currentBet: 2 }),
+      ],
+    })
+    const next = dispatch(state, { type: 'CHECK', id: 1 })
+    expect(next).toBe(state)
+  })
+
+  it('allows CHECK for BB when max equals big blind (option)', () => {
+    const state = makeState({
+      currentStreet: 'preflop',
+      smallBlind: 1,
+      bigBlind: 2,
+      dealerIndex: 0,
+      activePlayerIndex: 2,
+      firstActorIndex: 0,
+      headsUpStreak: 0,
+      players: [
+        makePlayer({ id: 1, currentStack: 100, currentBet: 0 }),
+        makePlayer({ id: 2, currentStack: 99, currentBet: 1 }),
+        makePlayer({ id: 3, currentStack: 98, currentBet: 2 }),
+      ],
+    })
+    const next = dispatch(state, { type: 'CHECK', id: 3 })
+    expect(next.activePlayerIndex).toBe(nextEligibleIndex(next.players, 2))
+  })
+})
+
+describe('Betting round closure — last raiser', () => {
+  it('ends preflop when callers complete action back to BB who already raised', () => {
+    const state = makeState({
+      dealerIndex: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      currentStreet: 'preflop',
+      pot: 22,
+      firstActorIndex: 0,
+      activePlayerIndex: 1,
+      lastBetSize: 8,
+      streetAggressionCount: 2,
+      lastRaisePlayerIndex: 2,
+      players: [
+        makePlayer({ id: 1, currentStack: 190, currentBet: 10 }),
+        makePlayer({ id: 2, currentStack: 198, currentBet: 2 }),
+        makePlayer({ id: 3, currentStack: 190, currentBet: 10 }),
+      ],
+    })
+    const next = dispatch(state, { type: 'CALL', id: 2 })
+    expect(next.pendingStreetPrompt).toBe('flop')
+    expect(next.activePlayerIndex).toBeNull()
+    expect(next.players[1].currentBet).toBe(10)
+    expect(next.pot).toBe(30)
+  })
+
+  it('still leaves BB to act when everyone only called the blind (no voluntary raise)', () => {
+    const state = makeState({
+      dealerIndex: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      currentStreet: 'preflop',
+      pot: 5,
+      firstActorIndex: 0,
+      activePlayerIndex: 1,
+      lastRaisePlayerIndex: null,
+      streetAggressionCount: 0,
+      players: [
+        makePlayer({ id: 1, currentStack: 98, currentBet: 2 }),
+        makePlayer({ id: 2, currentStack: 99, currentBet: 1 }),
+        makePlayer({ id: 3, currentStack: 98, currentBet: 2 }),
+      ],
+    })
+    const next = dispatch(state, { type: 'CALL', id: 2 })
+    expect(next.pendingStreetPrompt).toBeNull()
+    expect(next.activePlayerIndex).toBe(2)
+    expect(next.lastRaisePlayerIndex).toBeNull()
+  })
+})
+
 describe('Turn enforcement', () => {
   it('ignores PLACE_BET from a non-active player', () => {
     const state = makeState({
@@ -521,7 +611,7 @@ describe('Turn enforcement', () => {
         makePlayer({ id: 2, currentStack: 100, currentBet: 0 }),
       ],
     })
-    const next = dispatch(state, { type: 'PLACE_BET', id: 1, amount: 10 })
+    const next = dispatch(state, { type: 'PLACE_BET', id: 1, targetStreetBet: 10 })
     expect(next).toBe(state)
   })
 })
@@ -550,7 +640,7 @@ describe('Action advance — activePlayerIndex updates', () => {
   })
 
   it('PLACE_BET advances activePlayerIndex', () => {
-    const next = dispatch(threePlayerState, { type: 'PLACE_BET', id: 1, amount: 10 })
+    const next = dispatch(threePlayerState, { type: 'PLACE_BET', id: 1, targetStreetBet: 10 })
     expect(next.activePlayerIndex).toBe(1)
   })
 
@@ -766,7 +856,7 @@ describe('PLACE_BET — lastBetSize tracking', () => {
         makePlayer({ id: 2, currentStack: 100, currentBet: 0 }),
       ],
     })
-    const next = dispatch(state, { type: 'PLACE_BET', id: 1, amount: 10 })
+    const next = dispatch(state, { type: 'PLACE_BET', id: 1, targetStreetBet: 10 })
     expect(next.lastBetSize).toBe(10)
   })
 
@@ -783,7 +873,7 @@ describe('PLACE_BET — lastBetSize tracking', () => {
       ],
     })
     // Player 2 raises to 25 — the raise increment over the existing 10 is 15
-    const next = dispatch(state, { type: 'PLACE_BET', id: 2, amount: 25 })
+    const next = dispatch(state, { type: 'PLACE_BET', id: 2, targetStreetBet: 25 })
     expect(next.lastBetSize).toBe(15)
   })
 })
@@ -804,7 +894,7 @@ describe('PLACE_BET — all-in', () => {
         makePlayer({ id: 2, currentStack: 100 }),
       ],
     })
-    const next = dispatch(state, { type: 'PLACE_BET', id: 1, amount: 50 })
+    const next = dispatch(state, { type: 'PLACE_BET', id: 1, targetStreetBet: 50 })
     const p1 = next.players.find((p) => p.id === 1)
     expect(p1.isAllIn).toBe(true)
     expect(p1.currentStack).toBe(0)
@@ -821,7 +911,7 @@ describe('PLACE_BET — all-in', () => {
         makePlayer({ id: 2, currentStack: 100 }),
       ],
     })
-    const next = dispatch(state, { type: 'PLACE_BET', id: 1, amount: 20 })
+    const next = dispatch(state, { type: 'PLACE_BET', id: 1, targetStreetBet: 20 })
     const p1 = next.players.find((p) => p.id === 1)
     expect(p1.isAllIn).toBe(false)
   })
@@ -1016,5 +1106,9 @@ describe('initialState shape', () => {
 
   it('includes streetAggressionCount defaulting to 0', () => {
     expect(initialState).toHaveProperty('streetAggressionCount', 0)
+  })
+
+  it('includes lastRaisePlayerIndex defaulting to null', () => {
+    expect(initialState).toHaveProperty('lastRaisePlayerIndex', null)
   })
 })

@@ -2,7 +2,7 @@
 
 ## Poker Bet Tracker — Follow-up to Release 2 Plan
 
-**Status:** Draft — planning  
+**Status:** Implemented — see **§9 Post-release refinements** for follow-on UX and betting-input rules.  
 **Parent plan:** `implementation-plan-v2.md`  
 **PRD:** `prd-v2.md`
 
@@ -10,18 +10,18 @@
 
 ## 1. Purpose
 
-The v2 implementation added dealer/blind display, streets, blinds posting, and an `activePlayerIndex` model, but several behaviours remain **advisory** rather than **enforced**. This document defines a focused patch to align gameplay with standard Texas Hold’em betting order, street closure, and UI labelling—without expanding scope into full tournament rules (side pots, time banks, etc.).
+The v2 implementation added dealer/blind display, streets, blinds posting, and an `activePlayerIndex` model, but several behaviours remained **advisory** rather than **enforced**. This document defined a patch to align gameplay with Texas Hold’em-style betting order, street closure, and UI labelling—without full tournament rules (side pots, time banks, etc.).
 
 ---
 
-## 2. Current Issues (Summary)
+## 2. Original Issues (Summary)
 
 | # | Issue | Symptom |
 |---|--------|---------|
-| A | Manual dealer rotation during play | `ROTATE_DEALER` is available on the gameplay screen; users can change D/SB/BB mid-hand or mid-street. |
-| B | No turn enforcement | `PlayerCard` treats `activePlayerIndex === null` as “everyone active”; `NEXT_PLAYER` overrides order; any player can place bets after cycling with **Next player**. |
-| C | Street closure not enforced | **Next street →** is manual. Play can continue with unmatched action or skip streets without the pot/bet state reflecting a completed round. |
-| D | “Bet” label when facing action | When there is already a wager on the street, opening **Bet** should read **Raise** / **3-bet** / **4-bet**, etc. |
+| A | Manual dealer rotation during play | `ROTATE_DEALER` was available on the gameplay screen; users could change D/SB/BB mid-hand or mid-street. |
+| B | No turn enforcement | `PlayerCard` treated everyone as active when `activePlayerIndex === null`; **Next player** overrode order. |
+| C | Street closure not enforced | **Next street →** was manual; rounds could be skipped illegally. |
+| D | “Bet” label when facing action | With a wager on the street, actions should read **Raise** / **3-bet** / **4-bet**, not **Bet**. |
 
 ---
 
@@ -65,18 +65,19 @@ The round is complete when:
 
 **Street transition — user confirmation (locked in):** When the round is complete and there is a further board street (`preflop` → flop → turn → river), do **not** silently mutate `currentStreet`. Instead:
 
-1. Enter a **prompt state** (modal or full-width banner) with a short message, e.g. **“Deal Flop”**, **“Deal Turn”**, **“Deal River”**, as appropriate.
-2. The user taps **Done** / **OK** to acknowledge.
-3. Only then apply the same logical effect as today’s `ADVANCE_STREET`: reset street bets, set `currentStreet`, reset aggression count, set post-flop first actor, etc.
+1. Set **`pendingStreetPrompt`** (`'flop' | 'turn' | 'river'`). Show a blocking modal with title/body (implemented as **Deal the flop** / **Deal the turn** / **Deal the river** and instructions to deal the board cards **before** confirming).
+2. The user taps **OK** → **`CONFIRM_NEXT_STREET`**.
+3. **`advanceStreetCore`** runs: reset street `currentBet`s, set `currentStreet`, reset `streetAggressionCount`, set post-flop first actor.
 
-Until the user confirms, **no** betting on the next street should occur (no duplicate **Next street →** bypass). Remove or repurpose the old manual **Next street →** button so it cannot skip ahead of legal closure.
+Until the user confirms, **no** betting on the next street occurs. Manual **Next street →** and **`ADVANCE_STREET`** as a user bypass are removed (`ADVANCE_STREET` is a no-op).
 
-### 3.5 Bet vs raise labelling
+### 3.5 Bet vs raise labelling and chip input
 
-Derive a **voluntary aggression index** per betting street (reset on confirmed street advance):
-
-- First chips into an unopened pot on that street → **Bet** (or **Check** if allowed).
-- Further voluntary increases → **Raise**, **3-bet**, **4-bet**, etc., per the counter table in the previous draft (`streetAggressionCount`).
+- Derive **`streetAggressionCount`** per betting street (reset on confirmed street advance and new hand).
+- **Open** (no wager on this street yet, post-flop): button **Bet**.
+- **Facing a wager** (`maxBet > 0`): never **Bet** — use **Raise**, **3-bet**, **4-bet**, etc.
+- **Voluntary chip entry:** **`PLACE_BET`** carries **`targetStreetBet`** = **total** wager **this street** for the acting player (not an additive delta). The reducer computes **increment** = `targetStreetBet - currentBet` (capped by stack) and adds that increment to the pot.
+- **Minimum open / raise** enforced in reducer (**§9**); **`bet_placed`** **`bet_amount`** = chip **increment**, not the UI total input.
 
 ---
 
@@ -84,54 +85,51 @@ Derive a **voluntary aggression index** per betting street (reset on confirmed s
 
 ### 4.1 Reducer (`reducer.js`)
 
-1. **`ROTATE_DEALER`** — Guard: if `state.screen !== 'setup'`, return `state`.
-2. **`NEXT_HAND` (heads-up)** — Replace naive `dealerIndex++` every hand with the **two-hand stagger** described in §3.2; keep multi-way behaviour unchanged.
-3. **`START_GAME` / `NEXT_HAND`** — Preflop first actor from **effective BB index** for that hand.
-4. **`ADVANCE_STREET`** — Split into internal helper; **do not** call it directly when the round completes until UI confirms—either dispatch **`REQUEST_STREET_PROMPT`** state update or set `pendingStreetBanner: 'flop' | …`** so the screen can show copy.
-5. **New action e.g. `CONFIRM_NEXT_STREET`** — Applies the actual street transition after the user taps Done on **Deal Flop / Turn / River**.
-6. **Guards** on `PLACE_BET`, `CALL`, `CHECK`, `FOLD` — Must match `activePlayerIndex`.
-7. **Delete `NEXT_PLAYER`** case and all dispatch sites.
-8. **`isBettingRoundComplete`** — After valid actions, if true and not river → set prompt for next street instead of immediate advance.
-9. **`streetAggressionCount`** — Reset on confirmed advance and on `NEXT_HAND`.
+1. **`ROTATE_DEALER`** — Only when `screen === 'setup'`; otherwise no-op + `dealer_rotate_blocked`.
+2. **`NEXT_HAND`** — Heads-up: **`headsUpStreak`** two-hand dealer stagger + blind swap; 3+: rotate dealer each hand.
+3. **`START_GAME` / `NEXT_HAND`** — First preflop actor after effective BB (`getBlindIndices`, `nextEligibleIndex`).
+4. **`pendingStreetPrompt`** — Set when betting completes (not on river); cleared by **`CONFIRM_NEXT_STREET`** or **End hand**.
+5. **`CONFIRM_NEXT_STREET`** — Runs **`advanceStreetCore`**; emits **`street_confirmed`** + **`street_advanced`**.
+6. **`ADVANCE_STREET`** — **No-op** (no user bypass).
+7. **`PLACE_BET`** — **`targetStreetBet`** = total this street; legacy **`amount`** = increment. Min open / min raise / short all-in rules; **`lastBetSize`** = raise increment over previous max.
+8. **`CHECK`** — Preflop: **BB only**, **`maxBet === bigBlind`** (no raise).
+9. **Turn guards** — `PLACE_BET`, `CALL`, `CHECK`, `FOLD` require **`activePlayerIndex`**; **`turn_violation_attempt`** otherwise.
+10. **`NEXT_PLAYER`** — Removed.
+11. **`isBettingRoundClosed`** — Triggers street prompt when orbit + matched bets.
+12. **`streetAggressionCount`** — Reset on street confirm and **`NEXT_HAND`**.
 
 ### 4.2 UI
 
-1. Remove gameplay **Rotate dealer**; keep rotation only on setup if applicable.
-2. **`PlayerCard`** — Strict active player highlighting; disable actions when not the actor.
-3. **Street confirmation** — Modal or blocking sheet with title/body per next street + primary **Done** / **OK**.
-4. **Bet / Raise / N-bet** labels from aggression count + `maxBet`.
-5. Remove **Next player** control from `GameplayScreen.jsx`.
+1. **`SetupScreen`** — **Rotate dealer** (2+ players); gameplay has no rotate.
+2. **`GameplayScreen`** — **`PROMPT_COPY`**: “Deal the flop / turn / river” + deal-then-confirm body; **OK** → **`CONFIRM_NEXT_STREET`**.
+3. **`PlayerCard`** — Active-only; disabled during prompt; **DEALER** / **SMALL BLIND** / **BIG BLIND**; preflop check rules; voluntary chip button rules (**§9**); total-wager helper text.
 
-### 4.3 Tests (`reducer.test.js` and any component tests)
+### 4.3 Tests (`src/__tests__/reducer.test.js`)
 
-**Required updates:**
-
-| Area | Change |
+| Area | Notes |
 |------|--------|
-| **`NEXT_PLAYER`** | Remove the entire `describe('NEXT_PLAYER')` block (or replace with “removed” smoke test that expects unknown actions noop—prefer deletion). |
-| **`ROTATE_DEALER`** | Assert no-op when `screen === 'gameplay'`; keep/adjust setup-only tests if `ROTATE_DEALER` remains on setup. |
-| **Turn enforcement** | Add cases: wrong `id` on `PLACE_BET` / `CALL` / `CHECK` / `FOLD` leaves state unchanged. |
-| **Preflop first actor** | Multi-way: first actor is after effective BB. |
-| **Heads-up** | New describe block: over a sequence of `NEXT_HAND` calls, dealer button moves every **two** hands; SB/BB roles alternate/stagger per §3.2; posting amounts hit correct stacks. |
-| **Street closure** | When betting round completes, state indicates **pending** next street (prompt), not advanced `currentStreet`, until `CONFIRM_NEXT_STREET`. After confirm, `currentStreet` and bets match expectations. |
-| **Regression** | Re-run full suite after removing `NEXT_PLAYER`; fix any tests that relied on manual advance. |
+| **`makeState`** | Spreads **`initialState`**. |
+| **`ROTATE_DEALER`** | Setup vs gameplay. |
+| **Turn enforcement** | Wrong-player **`PLACE_BET`** with **`targetStreetBet`**. |
+| **`PLACE_BET`** | **`targetStreetBet`** totals; **`ADVANCE_STREET`** no-op; **`CONFIRM_NEXT_STREET`** replaces old street advance tests. |
+| **HU `NEXT_HAND`** | **`headsUpStreak`** / dealer cadence. |
+| **initialState shape** | **`headsUpStreak`**, **`firstActorIndex`**, **`pendingStreetPrompt`**, **`streetAggressionCount`**. |
+| **Preflop `CHECK`** | **`describe('CHECK — preflop big blind only')`** — non-BB no-op; BB CHECK advances when `maxBet === bigBlind`. |
 
-Optional: lightweight React test or interaction test that the modal appears with **Deal Flop** copy when transitioning from preflop—only if you already use component tests.
+### 4.4 Analytics (`track` in `reducer.js`; helper unchanged in `analytics.js`)
 
-### 4.4 Analytics (`analytics.js` / `track` calls)
+| Event | When | Properties |
+|-------|------|------------|
+| `street_prompt_shown` | Prompt displayed | `next_street`, `hand_number` |
+| `street_confirmed` | **OK** on modal | `next_street`, `hand_number` |
+| `street_advanced` | **`advanceStreetCore`** (real street change) | `street_name`, `hand_number` |
+| `turn_violation_attempt` | Wrong player | `action_type`, `hand_number` |
+| `dealer_rotate_blocked` | Rotate outside setup | `screen` |
+| `bet_placed` | **`PLACE_BET`** succeeds | **`bet_amount`** = **chip increment** to pot; `hand_number`, `player_stack` |
 
-Treat instrumentation as **part of this patch**, not optional polish.
+**Note:** **`bet_amount`** is always chips added this action, not the UI “total wager” field. Optional future: add **`total_wager`** or **`target_street_bet`** for analysis.
 
-| Event | When | Suggested properties |
-|-------|------|----------------------|
-| `street_prompt_shown` | Betting round completes and UI shows Deal Flop / Turn / River | `next_street`, `hand_number` |
-| `street_confirmed` | User taps Done on that prompt | `next_street`, `hand_number` |
-| `turn_violation_attempt` | Dispatch ignored because wrong player acted | `action_type`, `hand_number` (low volume; useful for QA) |
-| `dealer_rotate_blocked` | `ROTATE_DEALER` no-op outside setup | `screen` |
-
-Keep existing events (`street_advanced`, `bet_placed`, etc.): fire **`street_advanced`** (or rename consistently) **when the street actually changes**—i.e. on **confirm**, not when the prompt appears—so funnels stay aligned with real gameplay progression.
-
-**Dashboard note:** If Mixpanel reports depend on `street_advanced` timing, coordinate the event definition change so historical vs new data are understood.
+**`street_advanced`** fires on confirm, **not** on **`street_prompt_shown`**.
 
 ---
 
@@ -146,6 +144,7 @@ Keep existing events (`street_advanced`, `bet_placed`, etc.): fire **`street_adv
 | 5 | `isBettingRoundComplete` + prompt state + `CONFIRM_NEXT_STREET` + modal UI | Phase 4 |
 | 6 | Aggression count + Bet/Raise/N-bet labels | Phase 4 |
 | 7 | Analytics hooks + full test pass | Phases 1–6 |
+| 8 | Total-wager **`PLACE_BET`**, BB-only preflop check, voluntary-button visibility, role/prompt copy (**§9**) | Phases 1–7 |
 
 ---
 
@@ -159,12 +158,15 @@ Keep existing events (`street_advanced`, `bet_placed`, etc.): fire **`street_adv
 
 ## 7. Done Criteria
 
-- Dealer cannot be rotated after **Start game** from normal UI paths.
-- Heads-up blind/button progression matches the **two-hand dealer stagger** and alternating SB/BB behaviour described in §3.2.
-- Only the active player’s controls mutate pot/stack/bets on their turn; **`NEXT_PLAYER` is gone**.
-- Betting rounds cannot advance streets illegally; **Deal Flop / Turn / River** appears and requires **Done** before the next street’s betting.
-- Facing a wager, the primary chip-add control uses **Raise** / **N-bet** labelling as appropriate.
-- Tests and analytics updated per §4.3 and §4.4.
+- Dealer cannot be rotated after **Start game** from normal UI paths (rotate only on **setup**).
+- Heads-up blind/button progression matches §3.2 (**`headsUpStreak`**).
+- Only the active player’s controls mutate pot/stack/bets; **`NEXT_PLAYER`** removed.
+- Streets advance only after legal betting closure + **`CONFIRM_NEXT_STREET`** (modal **OK**).
+- Facing a wager: voluntary control never labelled **Bet**; **Raise** / **N-bet** only when `maxBet > 0`.
+- Preflop **Check** only for **BB** with **no raise** (`maxBet === bigBlind`); reducer and UI aligned.
+- **`PLACE_BET`** uses **total street wager** (**`targetStreetBet`**); **`bet_placed.bet_amount`** = chip increment.
+- Seat tags and street modal copy match §9.
+- Tests (**§4.3**) and analytics contract (**§4.4**) documented and passing.
 
 ---
 
@@ -173,5 +175,21 @@ Keep existing events (`street_advanced`, `bet_placed`, etc.): fire **`street_adv
 | Topic | Decision |
 |-------|----------|
 | Heads-up geometry | Keep SB = `dealerIndex+1`, BB = `dealerIndex+2`; implement **unique** automatic progression so the dealer button moves **every two hands** while SB/BB roles **alternate/stagger** between those players each hand. |
-| Street advance UX | Show a short notice (**Deal Flop**, **Deal Turn**, **Deal River**); user must press **Done** / **OK** before the app advances `currentStreet` and opens betting on the new street. |
+| Street advance UX | Blocking modal + **OK** → **`CONFIRM_NEXT_STREET`**; instructional copy per **`PROMPT_COPY`** (**Deal the flop / turn / river**). |
 | `NEXT_PLAYER` | Remove from reducer and UI entirely. |
+| Chip input | **Total wager this street** (`targetStreetBet`); legacy **`amount`** increment still accepted in reducer. |
+
+---
+
+## 9. Post-release refinements (implemented)
+
+These extend the baseline plan without replacing core enforcement.
+
+| Topic | Behaviour |
+|-------|-----------|
+| **Total wager** | UI and primary dispatch: **`targetStreetBet`**. Reducer derives increment; **`bet_placed.bet_amount`** = chips added. |
+| **Voluntary button** | Shown for **open** (post-flop, `maxBet === 0`), **facing bet** (Call + Raise / N-bet), or **BB preflop option** (Check + Raise). Hidden when only **Check** applies (matched stacks). |
+| **Preflop check** | Only **BB**, only if **`maxBet === bigBlind`**. |
+| **Role labels** | **DEALER**, **SMALL BLIND**, **BIG BLIND**. |
+| **Street prompts** | Titles + body: deal physical cards **then** tap **OK**. |
+| **Min open / raise** | Validated in reducer; short **all-in** raise allowed when stack cannot satisfy full min raise. |

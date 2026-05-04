@@ -2,9 +2,15 @@ import { useState } from 'react'
 import { useGame } from '../App'
 import { getBlindIndices } from '../reducer'
 
-function primaryVoluntaryBetLabel(streetAggressionCount, maxBet) {
+const ROLE_LABEL = {
+  D: 'DEALER',
+  SB: 'SMALL BLIND',
+  BB: 'BIG BLIND',
+}
+
+function primaryVoluntaryBetLabel(streetAggressionCount, maxBet, openingStreet) {
   const nextLevel = streetAggressionCount + 1
-  if (maxBet === 0) return 'Bet'
+  if (maxBet === 0 && openingStreet) return 'Bet'
   if (nextLevel === 1) return 'Raise'
   if (nextLevel === 2) return '3-bet'
   return `${nextLevel + 1}-bet`
@@ -19,43 +25,87 @@ export default function PlayerCard({ player }) {
   const playerIndex = state.players.findIndex((p) => p.id === player.id)
   const count = state.players.length
 
-  // Dealer / SB / BB role (heads-up blind stagger)
   const dealerIdx = state.dealerIndex
   const streak = state.headsUpStreak ?? 0
   const { sbIdx, bbIdx } = getBlindIndices(dealerIdx, count, streak)
-  const role = playerIndex === dealerIdx ? 'D' : playerIndex === sbIdx ? 'SB' : playerIndex === bbIdx ? 'BB' : null
+  const roleKey = playerIndex === dealerIdx ? 'D' : playerIndex === sbIdx ? 'SB' : playerIndex === bbIdx ? 'BB' : null
+  const role = roleKey ? ROLE_LABEL[roleKey] : null
+  const isBB = playerIndex === bbIdx
 
   const streetBlocked = state.pendingStreetPrompt != null
-  // Active player (strict turn order)
   const isActive =
     !streetBlocked && state.activePlayerIndex !== null && playerIndex === state.activePlayerIndex
 
-  // Bet / call calculations
   const activePlayers = state.players.filter((p) => !p.hasFolded)
   const maxBet = Math.max(0, ...activePlayers.map((p) => p.currentBet))
   const callAmount = Math.min(maxBet - player.currentBet, player.currentStack)
   const showCall = maxBet > 0 && player.currentBet < maxBet
-  const canCheck = player.currentBet >= maxBet
 
-  // Min bet
-  const minBet = maxBet > 0 ? (state.lastBetSize || state.bigBlind || null) : (state.bigBlind || null)
-  const betVerb = primaryVoluntaryBetLabel(state.streetAggressionCount ?? 0, maxBet)
+  const canCheck =
+    player.currentBet >= maxBet &&
+    (state.currentStreet !== 'preflop' ||
+      (isBB && state.bigBlind != null && maxBet === state.bigBlind))
+
+  const bb = state.bigBlind || 1
+  const minRaiseUnit = Math.max(state.lastBetSize || 0, bb)
+  const minTotalRaise = maxBet > 0 ? maxBet + minRaiseUnit : bb
+
+  const openBettingStreet =
+    state.currentStreet && state.currentStreet !== 'preflop' && maxBet === 0
+
+  const bbPreflopRaiseOption =
+    state.currentStreet === 'preflop' &&
+    isBB &&
+    state.bigBlind != null &&
+    maxBet === state.bigBlind &&
+    player.currentBet >= maxBet
+
+  const facingBet = maxBet > 0 && player.currentBet < maxBet
+
+  const showVoluntaryBet = facingBet || bbPreflopRaiseOption || openBettingStreet
+
+  const betVerb = primaryVoluntaryBetLabel(
+    state.streetAggressionCount ?? 0,
+    maxBet,
+    openBettingStreet,
+  )
 
   function handleBetConfirm() {
-    const amount = Number(betInput)
-    if (!betInput.trim() || isNaN(amount) || amount <= 0) {
-      setBetError('Enter a valid amount')
+    const total = Number(betInput)
+    if (!betInput.trim() || isNaN(total) || total <= 0) {
+      setBetError('Enter a valid total')
       return
     }
-    if (amount > player.currentStack) {
-      setBetError(`Max bet is $${player.currentStack}`)
+    const maxCap = player.currentBet + player.currentStack
+    if (total > maxCap) {
+      setBetError(`Maximum total this street is $${maxCap}`)
       return
     }
-    if (minBet && amount < player.currentStack && amount < minBet) {
-      setBetError(`Min bet is $${minBet}`)
+    if (total <= player.currentBet) {
+      setBetError('Total must exceed your current street wager')
       return
     }
-    dispatch({ type: 'PLACE_BET', id: player.id, amount })
+    if (maxBet > 0 && total < maxBet) {
+      setBetError('Use Call to match the current bet')
+      return
+    }
+    if (maxBet > 0 && total === maxBet) {
+      setBetError('Use Call to match — enter a higher total only to raise')
+      return
+    }
+    if (maxBet === 0) {
+      if (total < bb && total < maxCap) {
+        setBetError(`Minimum total wager is $${bb}`)
+        return
+      }
+    } else {
+      const minR = maxBet + minRaiseUnit
+      if (total < minR && total < maxCap) {
+        setBetError(`Minimum raise total is $${minR} (or go all-in for $${maxCap})`)
+        return
+      }
+    }
+    dispatch({ type: 'PLACE_BET', id: player.id, targetStreetBet: total })
     setBettingOpen(false)
     setBetInput('')
     setBetError('')
@@ -87,10 +137,10 @@ export default function PlayerCard({ player }) {
     return (
       <div className={`bg-zinc-900 rounded-2xl p-4 ${isActive ? 'ring-2 ring-amber-500/60' : ''}`}>
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <p className="font-medium text-sm">{player.name}</p>
             {role && (
-              <span className="text-xs font-bold text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded">
+              <span className="text-[10px] font-semibold text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded uppercase tracking-wide">
                 {role}
               </span>
             )}
@@ -113,16 +163,16 @@ export default function PlayerCard({ player }) {
 
   return (
     <div className={cardClass}>
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center gap-2">
+      <div className="flex items-start justify-between mb-3 gap-2">
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
           <p className="font-medium text-sm">{player.name}</p>
           {role && (
-            <span className="text-xs font-bold text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded">
+            <span className="text-[10px] font-semibold text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded uppercase tracking-wide whitespace-nowrap">
               {role}
             </span>
           )}
         </div>
-        <div className="text-right">
+        <div className="text-right shrink-0">
           <p className="text-xs text-zinc-400">Stack: <span className="text-white font-medium">${player.currentStack}</span></p>
           <p className="text-xs text-zinc-400 mt-0.5">Bet: <span className="text-emerald-400 font-medium">${player.currentBet}</span></p>
         </div>
@@ -130,12 +180,10 @@ export default function PlayerCard({ player }) {
 
       {bettingOpen ? (
         <div className="space-y-2">
-          {maxBet > 0 && (
-            <p className="text-xs text-zinc-500">Current bet: ${maxBet} · Amount to add</p>
-          )}
-          {minBet && (
-            <p className="text-xs text-zinc-600">Min: ${minBet}</p>
-          )}
+          <p className="text-xs text-zinc-300 font-medium">
+            {maxBet > 0 ? 'Raise to:' : 'Bet to:'}
+          </p>
+          <p className="text-xs text-zinc-500">Minimum: ${minTotalRaise}</p>
           <div>
             <div className="flex items-center bg-zinc-800 rounded-lg overflow-hidden">
               <span className="pl-3 text-zinc-400 text-sm">$</span>
@@ -143,9 +191,10 @@ export default function PlayerCard({ player }) {
                 autoFocus
                 type="number"
                 min="1"
-                max={player.currentStack}
+                step="1"
                 className="flex-1 bg-transparent px-2 py-3 text-sm outline-none"
-                placeholder="0"
+                placeholder=""
+                aria-label={maxBet > 0 ? 'Raise to total' : 'Bet to total'}
                 value={betInput}
                 onChange={(e) => { setBetInput(e.target.value); setBetError('') }}
                 onKeyDown={(e) => e.key === 'Enter' && handleBetConfirm()}
@@ -169,11 +218,11 @@ export default function PlayerCard({ player }) {
           </div>
         </div>
       ) : (
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={() => isActive && dispatch({ type: 'CHECK', id: player.id })}
             disabled={!canCheck || !isActive}
-            className={`flex-1 text-sm font-medium rounded-lg py-2.5 transition-colors ${
+            className={`flex-1 min-w-[4.5rem] text-sm font-medium rounded-lg py-2.5 transition-colors ${
               !canCheck || !isActive
                 ? 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
                 : 'bg-zinc-700 hover:bg-zinc-600 active:bg-zinc-500 text-white'
@@ -186,7 +235,7 @@ export default function PlayerCard({ player }) {
             <button
               onClick={() => isActive && dispatch({ type: 'CALL', id: player.id })}
               disabled={!isActive}
-              className={`flex-1 text-sm font-medium rounded-lg py-2.5 transition-colors ${
+              className={`flex-1 min-w-[4.5rem] text-sm font-medium rounded-lg py-2.5 transition-colors ${
                 isActive
                   ? 'bg-blue-600 hover:bg-blue-500 active:bg-blue-400 text-white'
                   : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
@@ -198,22 +247,24 @@ export default function PlayerCard({ player }) {
             </button>
           )}
 
-          <button
-            onClick={() => isActive && setBettingOpen(true)}
-            disabled={!isActive}
-            className={`flex-1 text-sm font-medium rounded-lg py-2.5 transition-colors ${
-              isActive
-                ? 'bg-zinc-700 hover:bg-zinc-600 active:bg-zinc-500 text-white'
-                : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
-            }`}
-          >
-            {betVerb}
-          </button>
+          {showVoluntaryBet && (
+            <button
+              onClick={() => isActive && setBettingOpen(true)}
+              disabled={!isActive}
+              className={`flex-1 min-w-[4.5rem] text-sm font-medium rounded-lg py-2.5 transition-colors ${
+                isActive
+                  ? 'bg-zinc-700 hover:bg-zinc-600 active:bg-zinc-500 text-white'
+                  : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
+              }`}
+            >
+              {betVerb}
+            </button>
+          )}
 
           <button
             onClick={() => isActive && dispatch({ type: 'FOLD', id: player.id })}
             disabled={!isActive}
-            className={`flex-1 text-sm font-medium rounded-lg py-2.5 transition-colors ${
+            className={`flex-1 min-w-[4.5rem] text-sm font-medium rounded-lg py-2.5 transition-colors ${
               isActive
                 ? 'bg-zinc-700 hover:bg-zinc-600 active:bg-zinc-500 text-white'
                 : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
