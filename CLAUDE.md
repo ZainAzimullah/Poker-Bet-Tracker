@@ -457,3 +457,81 @@ The MVP should:
 - make repeated hand play easy
 
 Do **not** prioritize advanced poker logic yet. Focus on usability, clarity, and confidence in the tracked state.
+
+---
+
+## File Structure
+
+```
+src/
+├── main.jsx                    Entry point — mounts App into the DOM
+├── App.jsx                     Root component — holds all state, provides GameContext
+├── reducer.js                  All state logic and Mixpanel event tracking
+├── analytics.js                Mixpanel init and track() helper
+├── index.css                   Global styles (Tailwind base)
+│
+├── screens/
+│   ├── SetupScreen.jsx         Screen 1 — add players and buy-ins
+│   ├── GameplayScreen.jsx      Screen 2 — pot display + player cards
+│   ├── EndHandScreen.jsx       Screen 3 — winner selection
+│   └── HandCompleteScreen.jsx  Screen 4 — result summary, start next hand
+│
+└── components/
+    └── PlayerCard.jsx          Reusable card — player state + action buttons
+```
+
+**State management:** A single `useReducer` in `App.jsx` holds all game state. It is shared globally via `GameContext` — every screen and component reads from it via the `useGame()` hook. There is no local state except for transient UI state (form inputs, error messages, whether the bet input is open).
+
+**Analytics:** `analytics.js` initialises Mixpanel once on load and exports a `track()` function. All event calls live in `reducer.js`, fired as side effects alongside state transitions. A `__developer` localStorage flag suppresses real user data during development.
+
+---
+
+## Screens & Flow
+
+```
+SetupScreen  →  GameplayScreen  →  EndHandScreen  →  HandCompleteScreen
+                     ↑                   |                    |
+                     |                   ↓ (cancel)           ↓
+                     └───────────────────┘           (loops back to GameplayScreen)
+```
+
+### Screen 1 — SetupScreen (`screen: 'setup'`)
+- Two inputs: player name + buy-in amount, with inline validation
+- "Add player" button (or Enter key) appends to the player list; players can be removed
+- "Start Game" button is disabled until ≥ 2 players are added; label counts down how many more are needed
+- Dispatches: `ADD_PLAYER`, `REMOVE_PLAYER`, `START_GAME`
+
+### Screen 2 — GameplayScreen (`screen: 'gameplay'`)
+- Header shows the current pot (large) and hand number
+- Renders one `PlayerCard` per player
+- "End Hand" button at the bottom navigates to EndHandScreen
+- Dispatches: `END_HAND`
+
+**PlayerCard** (used only in GameplayScreen):
+- Shows player name, current stack, and current bet
+- Folded players render as a greyed-out card with a "Folded" badge — no actions
+- Active players show three action buttons: **Check**, **Bet**, **Fold**
+  - Check is disabled if any non-folded player has a current bet > 0
+  - Bet opens an inline input field with Confirm / Cancel; validates amount > 0 and ≤ current stack
+- Dispatches: `CHECK`, `PLACE_BET`, `FOLD`
+
+### Screen 3 — EndHandScreen (`screen: 'endHand'`)
+- Shows the pot total
+- Lists active (non-folded) players as selectable buttons; folded players shown greyed out and ineligible
+- "Award Pot" button is disabled until a winner is selected
+- "← Back to game" link cancels and returns to GameplayScreen without changing state
+- Dispatches: `AWARD_POT`, `CANCEL_END_HAND`
+
+### Screen 4 — HandCompleteScreen (`screen: 'handComplete'`)
+- Trophy + winner name + pot amount won
+- Shows all players' updated stacks; winner row is highlighted in green
+- "Start Next Hand" resets per-hand state (bets → 0, folded → false, pot → 0) and returns to GameplayScreen with handNumber incremented
+- Dispatches: `NEXT_HAND`
+
+---
+
+**Key things missing from the current implementation** relative to the agreed roadmap:
+- No bet input labelling / additive context (Immediate Patch)
+- No one-touch Call button (Immediate Patch)
+- No dealer/SB/BB display or rotate button (Immediate Patch)
+- No split pot option in EndHandScreen — only a single winner can be selected (Release 2)
