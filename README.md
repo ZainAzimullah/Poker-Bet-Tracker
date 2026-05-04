@@ -99,6 +99,8 @@ These are Release 2 and backlog candidates, not oversights. See [roadmap.md](doc
 
 ## Roadmap
 
+![Poker roadmap](docs/images/roadmap.png)
+
 **MVP** — Core tracking loop (this release)
 
 **Release 2** — Blind config, turn order, betting street progression, rules enforcement, split pot
