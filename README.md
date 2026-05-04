@@ -4,7 +4,7 @@ A lightweight mobile web app for tracking poker bets, stacks, and pots during ca
 
 **→ [poker-bet-tracker.vercel.app](https://poker-bet-tracker.vercel.app/)**
 
-![Poker Bet Tracker app demo](docs/images/demo.png)
+![Poker Bet Tracker app demo](docs/images/demo-v2.png)
 
 ⚠️ This app uses virtual units only and does not support real-money transactions or payments.
 
@@ -99,7 +99,7 @@ These are Release 2 and backlog candidates, not oversights. See [roadmap.md](doc
 
 ## Roadmap
 
-**MVP** — Core tracking loop (this release)
+**MVP** — Core tracking loop
 
 **Release 2** — Blind config, enforced turn order, street progression (confirm-after-deal modal), rules enforcement (min bet/raise, short all-in raise, BB-only preflop check, fold only when facing a bet), split pot, setup **DEALER/SB/BB** tags + **Rotate dealer**, busted-out session handling
 
@@ -108,6 +108,12 @@ These are Release 2 and backlog candidates, not oversights. See [roadmap.md](doc
 **Enforcement patch** (turn/street/fold rules, total-street wager input): [implementation-plan-v2-bug-fixes.md](docs/implementation-plan-v2-bug-fixes.md)
 
 See [roadmap.md](docs/roadmap.md) for full detail and the conditions that unlock each release.
+
+---
+
+## MVP Preview
+
+![Poker Bet Tracker app demo](docs/images/demo-v1.png)
 
 ---
 
