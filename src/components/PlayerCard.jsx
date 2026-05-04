@@ -65,8 +65,12 @@ export default function PlayerCard({ player }) {
     player.currentBet >= maxBet
 
   const facingBet = maxBet > 0 && player.currentBet < maxBet
+  const canRaiseWhenFacingBet = player.currentStack > callAmount
 
-  const showVoluntaryBet = facingBet || bbPreflopRaiseOption || openBettingStreet
+  const showVoluntaryBet =
+    bbPreflopRaiseOption ||
+    openBettingStreet ||
+    (facingBet && canRaiseWhenFacingBet)
 
   const betVerb = primaryVoluntaryBetLabel(
     state.streetAggressionCount ?? 0,
