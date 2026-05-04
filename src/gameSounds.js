@@ -77,6 +77,7 @@ export function playAllInSound() {
   window.setTimeout(() => playOgg(ALL_IN_URL, 0.42), 150)
   window.setTimeout(() => playOgg(ALL_IN_LAYER_URL, 0.33), 195)
   window.setTimeout(() => playOgg(ALL_IN_URL, 0.26), 240)
+  window.setTimeout(() => playOgg(ALL_IN_LAYER_URL, 0.2), 320)
 }
 
 /**
