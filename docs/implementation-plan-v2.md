@@ -76,17 +76,18 @@ The existing state shape is extended. No existing fields are removed or renamed.
 | Action | Type | Description |
 |---|---|---|
 | `SET_BLINDS` | New | Sets `smallBlind` and `bigBlind` on state from setup form. |
+| `POST_BLINDS` | New | Deducts `smallBlind` from SB player's stack and `BB` from BB player's stack. Adds both to pot. Sets each player's `currentBet` accordingly. If a player's stack is less than their blind amount, posts their remaining stack and sets `isAllIn: true`. Fired automatically at the start of each hand after `NEXT_HAND` (or `START_GAME`). |
 | `ADVANCE_STREET` | New | Increments `currentStreet` to next value. Resets all `currentBet` values to 0. Resets `lastBetSize` to 0. Sets `activePlayerIndex` to first active player after dealer. |
 | `NEXT_PLAYER` | New | Manual fallback to advance `activePlayerIndex` to next non-folded, non-all-in player. |
 
 **Modified actions — Layer 2:**
 
-- `START_GAME`: Set `currentStreet` to `'preflop'`. Set `activePlayerIndex` to first player after dealer.
+- `START_GAME`: Set `currentStreet` to `'preflop'`. Set `activePlayerIndex` to first player after dealer. Dispatch `POST_BLINDS` immediately after.
 - `PLACE_BET`: After existing logic, update `lastBetSize` to the raise increment (betAmount - previousMaxBet, or betAmount if first bet of street). Advance `activePlayerIndex`. Mark player `isAllIn: true` if `currentStack` reaches 0.
 - `CALL`: After existing logic, advance `activePlayerIndex`. Mark player `isAllIn: true` if stack reaches 0.
 - `CHECK`: Advance `activePlayerIndex`.
 - `FOLD`: Advance `activePlayerIndex`. After folding, check auto-advance condition (see 5.6).
-- `NEXT_HAND`: Reset `currentStreet` to `'preflop'`. Reset `lastBetSize` to 0. Reset `isAllIn` to false for all players. Set `activePlayerIndex` to first player after new dealer.
+- `NEXT_HAND`: Reset `currentStreet` to `'preflop'`. Reset `lastBetSize` to 0. Reset `isAllIn` to false for all players. Set `activePlayerIndex` to first player after new dealer. Dispatch `POST_BLINDS` immediately after.
 - `AWARD_POT` / `AWARD_SPLIT_POT`: Clear `activePlayerIndex` and `currentStreet` on transition to `handComplete`.
 
 ---
@@ -197,6 +198,7 @@ Build Layer 2 items in this order — each has a hard dependency on items before
 | 3 | Layer 1 | Dealer/blind display — `dealerIndex` in state, derive SB/BB at render, show badges in `PlayerCard`, rotate in `NEXT_HAND`, manual rotate button in `GameplayScreen` |
 | 4 | Layer 1 | Split pot — `AWARD_SPLIT_POT` action, multi-select in `EndHandScreen`, multi-winner display in `HandCompleteScreen` |
 | 5 | Layer 2 | Blind config — SB/BB inputs in `SetupScreen`, `SET_BLINDS` action, display on gameplay screen |
+| 5a | Layer 2 | Automatic blind posting — `POST_BLINDS` action; deducts SB/BB from stacks, adds to pot, sets `currentBet` per player; dispatch after `START_GAME` and `NEXT_HAND`; partial blind / all-in handling if stack < blind amount |
 | 6 | Layer 2 | Turn order — `activePlayerIndex` in state, highlight in `PlayerCard`, advance on every action, manual next player button |
 | 7 | Layer 2 | Betting streets — `ADVANCE_STREET` action, street display in `GameplayScreen`, auto-advance logic, manual advance fallback, `currentBet` resets per street |
 | 8 | Layer 2 | Min bet enforcement — minimum display and validation in bet input (depends on steps 5 + 7) |
@@ -231,7 +233,6 @@ Layer 1 steps (1–4) are independent of each other and can be built in any orde
 
 Do not implement unless explicitly requested:
 
-- Automatic blind posting (deduction of SB/BB from stacks at hand start)
 - Side pots (multi-way all-in with different stack depths)
 - Raise-size enforcement beyond minimum (re-raise must be at least the size of the previous raise increment)
 - Session or hand history

@@ -96,7 +96,7 @@ These address the post-MVP review findings directly. They require no Release 2 i
 
 **Problem:** Players have no shared reference for who is dealer, small blind, and big blind between hands. This is a social coordination problem — it slows the table and creates disagreement.
 
-**Solution:** Display dealer (D), small blind (SB), and big blind (BB) indicators alongside player names on the gameplay screen. Roles rotate one position clockwise at the start of each new hand. No enforcement, no configuration, no automatic blind deduction — display and rotation only.
+**Solution:** Display dealer (D), small blind (SB), and big blind (BB) indicators alongside player names on the gameplay screen. Roles rotate one position clockwise at the start of each new hand. No enforcement or configuration required at this layer — blind amounts and automatic posting are handled in 5.7.
 
 **Acceptance criteria:**
 - D, SB, and BB indicators are visible on the gameplay screen for the relevant players
@@ -104,7 +104,6 @@ These address the post-MVP review findings directly. They require no Release 2 i
 - Rotation is clockwise through the active player list
 - A manual rotate option is available if the auto-rotation needs correction
 - No configuration screen is required for this feature
-- Blind level amounts and automatic blind posting are out of scope for this layer
 
 #### 5.4 Split pot
 
@@ -154,14 +153,16 @@ These features add the poker structure that was deliberately excluded from MVP. 
 
 **Problem:** Without a configurable big blind value, minimum bet enforcement (5.8) has no baseline. Users also need to agree on blind sizes before a game.
 
-**Solution:** Add blind level fields to game setup. Small blind and big blind amounts are required before a game can start. These values inform minimum bet enforcement and are displayed alongside position indicators from 5.3. No automatic blind posting in this release.
+**Solution:** Add blind level fields to game setup. Small blind and big blind amounts are required before a game can start. These values inform minimum bet enforcement and are displayed alongside position indicators from 5.3. At the start of each hand, the configured SB and BB amounts are automatically deducted from the respective players' stacks and added to the pot — players do not need to enter them manually.
 
 **Acceptance criteria:**
 - Game setup includes fields for small blind and big blind amounts
 - Both values are required before a game can start
 - Big blind value is used as the minimum opening bet on each street
 - Configured amounts are visible on the gameplay screen alongside position indicators
-- Automatic blind deduction from stacks is out of scope
+- At the start of each hand, the SB amount is deducted from the small blind player's stack and the BB amount from the big blind player's stack, with both amounts added to the pot automatically
+- Automatic posting is skipped if a player's stack is less than the blind amount — their remaining stack is posted as a partial blind and they are treated as all-in
+- The posted blind amounts are reflected in each player's current bet at the start of pre-flop, so the Call button and bet input logic work correctly from the first action
 
 #### 5.8 Minimum bet enforcement
 
@@ -201,8 +202,6 @@ These features add the poker structure that was deliberately excluded from MVP. 
 
 ## 6. Out of Scope for Release 2
 
-**Automatic blind posting** — SB and BB are displayed and informational only. Deducting blinds from stacks automatically is a backlog item.
-
 **Side pots** — Arise only in multi-way all-in situations with different stack depths. Distinct from split pot and significantly more complex. Backlog.
 
 **Raise-size enforcement beyond minimum** — Minimum raise is enforced (5.8). The additional rule that a re-raise must be at least the size of the previous raise increment is deferred. Backlog.
@@ -233,5 +232,5 @@ Track `call_placed` separately from `bet_placed` to measure Call button adoption
 ## 8. Open Questions
 
 - Should blind rotation at hand start be automatic, or require a manual confirm tap? *(Recommendation: automatic, but show the new assignments clearly so the table can verify)*
-- Should the app prompt players to post blinds as a reminder, or just display who holds the roles? *(Recommendation: display only in Release 2 — prompting adds friction without adding accuracy)*
 - Does minimum bet enforcement apply on the very first bet pre-flop, before blind config is surfaced to the player mid-game? *(Resolve before implementing 5.8)*
+- How should the UI communicate that blinds have been automatically posted at hand start — inline on each player card, a toast, or a summary above the pot? *(Resolve before implementing 5.7)*

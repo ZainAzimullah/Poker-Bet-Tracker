@@ -170,10 +170,11 @@ IMMEDIATE (patch before Release 2)
 RELEASE 2 (updated)
 ────────────────────────────────────────────────────
 - Blind level configuration
+- Automatic blind posting (SB and BB deducted from stacks at hand start)
 - Turn order and whose turn it is
 - Betting street progression
 - Minimum bet enforcement
-- All-in constraints and blind posting
+- All-in constraints
 - Split pot (correctness gap — equal division for tied hands)
 
 BACKLOG (unchanged)
