@@ -189,25 +189,200 @@ Build Layer 2 items in this order — each has a hard dependency on items before
 
 ---
 
-## Build Order
-
-| Step | Scope | What gets built |
-|---|---|---|
-| 1 | Layer 1 | Bet input labelling — add max wager display and "Amount to add" label to bet input in `PlayerCard` |
-| 2 | Layer 1 | Call button — `CALL` action in reducer + Call button in `PlayerCard` with correct show/hide logic |
-| 3 | Layer 1 | Dealer/blind display — `dealerIndex` in state, derive SB/BB at render, show badges in `PlayerCard`, rotate in `NEXT_HAND`, manual rotate button in `GameplayScreen` |
-| 4 | Layer 1 | Split pot — `AWARD_SPLIT_POT` action, multi-select in `EndHandScreen`, multi-winner display in `HandCompleteScreen` |
-| 5 | Layer 2 | Blind config — SB/BB inputs in `SetupScreen`, `SET_BLINDS` action, display on gameplay screen |
-| 5a | Layer 2 | Automatic blind posting — `POST_BLINDS` action; deducts SB/BB from stacks, adds to pot, sets `currentBet` per player; dispatch after `START_GAME` and `NEXT_HAND`; partial blind / all-in handling if stack < blind amount |
-| 6 | Layer 2 | Turn order — `activePlayerIndex` in state, highlight in `PlayerCard`, advance on every action, manual next player button |
-| 7 | Layer 2 | Betting streets — `ADVANCE_STREET` action, street display in `GameplayScreen`, auto-advance logic, manual advance fallback, `currentBet` resets per street |
-| 8 | Layer 2 | Min bet enforcement — minimum display and validation in bet input (depends on steps 5 + 7) |
-| 9 | Layer 2 | All-in constraints — `isAllIn` player field, all-in badge, cap validation in `PLACE_BET`, all-in call in `CALL` |
-| 10 | Layer 2 | Check prevention — update `anyWager` logic to street-aware: disable Check when player's `currentBet` < street maximum |
-| 11 | Both | Analytics — wire all new events through reducer for both layers |
-| 12 | Both | Mobile polish — review tap targets, active player visibility, badge legibility on small screens |
+## Build Checklist
 
 Layer 1 steps (1–4) are independent of each other and can be built in any order or in parallel. Layer 2 steps must follow the sequence from step 5 onward due to dependencies.
+
+### Step 1 — Bet Input Labelling (Layer 1)
+**Scope:** `PlayerCard.jsx`
+
+- [ ] When a wager exists among active players, show "Current bet: $X" adjacent to the bet input
+- [ ] Relabel the bet input field or add helper text: "Amount to add"
+- [ ] Ensure the label is hidden when no wager exists in the hand
+
+---
+
+### Step 2 — Call Button (Layer 1)
+**Scope:** `reducer.js`, `PlayerCard.jsx`
+
+- [ ] Add `CALL` action to `reducer.js`
+  - [ ] Calculate call amount: `maxBet - player.currentBet`
+  - [ ] If `currentStack < callAmount`, apply only remaining stack (all-in call)
+  - [ ] Deduct call amount from `currentStack`
+  - [ ] Add call amount to `pot`
+  - [ ] Increase player's `currentBet` by call amount
+  - [ ] Fire `call_placed` analytics event with `call_amount`, `player_stack`, `hand_number`
+- [ ] Show Call button in `PlayerCard` when a wager exists and player's `currentBet` < max `currentBet` among active players
+- [ ] Button label shows "Call $X" where X is the call amount
+- [ ] If `currentStack < callAmount`, label reads "All-in ($X)" where X is the player's remaining stack
+- [ ] Hide Call button when player has already matched the maximum bet
+- [ ] Call button dispatches `CALL` with player id
+
+---
+
+### Step 3 — Dealer/Blind Display (Layer 1)
+**Scope:** `reducer.js`, `GameplayScreen.jsx`, `PlayerCard.jsx`
+
+- [ ] Add `dealerIndex: 0` to `initialState` in `reducer.js`
+- [ ] Add `ROTATE_DEALER` action: increment `dealerIndex` by 1, wrap using `% players.length`
+- [ ] Update `NEXT_HAND` to rotate `dealerIndex` by 1 before resetting other hand state
+- [ ] Derive SB and BB at render time: SB = `(dealerIndex + 1) % players.length`, BB = `(dealerIndex + 2) % players.length`
+- [ ] Show D / SB / BB role badge next to player name in `PlayerCard`
+- [ ] Only show badges for non-folded players; folded cards show no badge
+- [ ] Add a "Rotate dealer" text button to `GameplayScreen` that dispatches `ROTATE_DEALER`
+
+---
+
+### Step 4 — Split Pot (Layer 1)
+**Scope:** `reducer.js`, `EndHandScreen.jsx`, `HandCompleteScreen.jsx`
+
+- [ ] Add `AWARD_SPLIT_POT` action to `reducer.js`
+  - [ ] Accept `winnerIds[]` array
+  - [ ] Calculate share: `Math.floor(pot / winnerIds.length)`
+  - [ ] Add share to each winner's `currentStack`
+  - [ ] Remainder (`pot % winnerIds.length`) stays in pot field — do not distribute
+  - [ ] Reset all `currentBet` values to 0
+  - [ ] Reset all `hasFolded` to false
+  - [ ] Transition `screen` to `'handComplete'`
+  - [ ] Set `winnerIds` (plural) on state alongside existing `winnerId`
+  - [ ] Fire `split_pot_awarded` analytics event with `split_count`, `pot_amount`, `hand_number`
+- [ ] Add "Split pot" toggle to `EndHandScreen`
+  - [ ] Default mode: single winner (existing behaviour, unchanged)
+  - [ ] Split mode: allows multiple players to be selected (multi-tap or checkboxes)
+  - [ ] Award button dispatches `AWARD_SPLIT_POT` with selected player ids
+  - [ ] Display remainder clearly when pot does not divide evenly: "Remainder $1 stays in pot"
+  - [ ] Award button disabled until at least one winner is selected
+  - [ ] Folded players are greyed out and ineligible in both modes
+- [ ] Update `HandCompleteScreen` to handle multiple winners
+  - [ ] When `winnerIds` has length > 1, show each winner's name and the amount they received
+  - [ ] Winner rows highlighted in green (consistent with single-winner behaviour)
+
+---
+
+### Step 5 — Blind Config (Layer 2)
+**Scope:** `reducer.js`, `SetupScreen.jsx`, `GameplayScreen.jsx`
+
+- [ ] Add `smallBlind: null` and `bigBlind: null` to `initialState`
+- [ ] Add `SET_BLINDS` action: set `smallBlind` and `bigBlind` from `action.smallBlind` / `action.bigBlind`
+  - [ ] Fire `blind_config_set` analytics event with `small_blind`, `big_blind`
+- [ ] Add SB and BB number inputs to `SetupScreen` below the player list
+- [ ] Both fields are required before Start Game button enables
+- [ ] Validate: both values are positive numbers; `bigBlind >= smallBlind`
+- [ ] Dispatch `SET_BLINDS` before `START_GAME` on Start Game button press
+- [ ] Display configured blind values on `GameplayScreen` (e.g. "Blinds: $1/$2")
+
+---
+
+### Step 5a — Automatic Blind Posting (Layer 2)
+**Scope:** `reducer.js`
+
+- [ ] Add `POST_BLINDS` action to `reducer.js`
+  - [ ] Identify SB player: `players[(dealerIndex + 1) % players.length]`
+  - [ ] Identify BB player: `players[(dealerIndex + 2) % players.length]`
+  - [ ] Post SB: deduct `min(smallBlind, sbPlayer.currentStack)` from SB stack; add to pot; set SB `currentBet`
+  - [ ] If SB's stack is less than `smallBlind`, post remaining stack and set `isAllIn: true` for SB
+  - [ ] Post BB: deduct `min(bigBlind, bbPlayer.currentStack)` from BB stack; add to pot; set BB `currentBet`
+  - [ ] If BB's stack is less than `bigBlind`, post remaining stack and set `isAllIn: true` for BB
+- [ ] Dispatch `POST_BLINDS` automatically after `START_GAME` (component or combined reducer logic)
+- [ ] Dispatch `POST_BLINDS` automatically after `NEXT_HAND`
+
+---
+
+### Step 6 — Turn Order (Layer 2)
+**Scope:** `reducer.js`, `PlayerCard.jsx`, `GameplayScreen.jsx`
+
+- [ ] Add `activePlayerIndex: null` to `initialState`
+- [ ] Add `NEXT_PLAYER` action: advance `activePlayerIndex` to next non-folded, non-all-in player (wraps)
+- [ ] Update `START_GAME` to set `activePlayerIndex` to first player after dealer (skip folded/all-in)
+- [ ] Update `PLACE_BET` to advance `activePlayerIndex` after existing bet logic
+- [ ] Update `CALL` to advance `activePlayerIndex` after existing call logic
+- [ ] Update `CHECK` to advance `activePlayerIndex`
+- [ ] Update `FOLD` to advance `activePlayerIndex` after marking player as folded
+- [ ] Apply visual highlight in `PlayerCard` when player index matches `activePlayerIndex`
+- [ ] Action buttons (Check, Bet, Call, Fold) are disabled/muted for non-active players
+- [ ] Add manual "Next player →" button to `GameplayScreen` as fallback; dispatches `NEXT_PLAYER`
+
+---
+
+### Step 7 — Betting Streets (Layer 2)
+**Scope:** `reducer.js`, `GameplayScreen.jsx`
+
+- [ ] Add `currentStreet: null` and `lastBetSize: 0` to `initialState`
+- [ ] Add `ADVANCE_STREET` action
+  - [ ] Increment `currentStreet`: `null → 'preflop'`, `'preflop' → 'flop'`, `'flop' → 'turn'`, `'turn' → 'river'`, `'river' → null`
+  - [ ] Reset all player `currentBet` values to 0
+  - [ ] Reset `lastBetSize` to 0
+  - [ ] Set `activePlayerIndex` to first active (non-folded, non-all-in) player after dealer
+  - [ ] Fire `street_advanced` analytics event with `street_name`, `hand_number`
+- [ ] Update `START_GAME` to set `currentStreet: 'preflop'`
+- [ ] Update `NEXT_HAND` to reset `currentStreet` to `'preflop'` and `lastBetSize` to 0
+- [ ] Update `AWARD_POT` and `AWARD_SPLIT_POT` to clear `currentStreet` and `activePlayerIndex` on transition to `handComplete`
+- [ ] Display current street in `GameplayScreen` below the pot: Pre-flop / Flop / Turn / River
+- [ ] Add "Next street →" button to `GameplayScreen` as manual fallback; dispatches `ADVANCE_STREET`
+
+---
+
+### Step 8 — Min Bet Enforcement (Layer 2)
+**Scope:** `reducer.js`, `PlayerCard.jsx`
+**Depends on:** Steps 5 (blind config) and 7 (streets)
+
+- [ ] Update `PLACE_BET` to record `lastBetSize`
+  - [ ] If no previous bet on street: `lastBetSize = betAmount`
+  - [ ] If raising: `lastBetSize = betAmount - previousMaxBet`
+- [ ] Display minimum allowed bet in the bet input in `PlayerCard`
+  - [ ] Opening bet: show "Min: $X" where X is `bigBlind`
+  - [ ] Raise: show "Min: $X" where X is `lastBetSize`
+- [ ] Block confirm with inline error if entered amount < minimum
+- [ ] Allow all-in bets below minimum (player's full stack is always valid)
+
+---
+
+### Step 9 — All-In Constraints (Layer 2)
+**Scope:** `reducer.js`, `PlayerCard.jsx`
+
+- [ ] Add `isAllIn: false` to each player in `initialState` players array
+- [ ] Update `PLACE_BET`: set `isAllIn: true` when `currentStack` reaches 0 after bet
+  - [ ] Fire `all_in_placed` analytics event
+- [ ] Update `CALL`: set `isAllIn: true` when `currentStack` reaches 0 after call
+  - [ ] Fire `all_in_placed` analytics event
+- [ ] Update `NEXT_HAND`: reset `isAllIn: false` for all players
+- [ ] Show "All-in" badge in `PlayerCard` when `isAllIn` is true
+- [ ] Hide action buttons (Check, Bet, Call, Fold) for all-in players
+- [ ] Cap bet amount at player's `currentStack` in `PLACE_BET` — reject bets above stack
+
+---
+
+### Step 10 — Check Prevention (Layer 2)
+**Scope:** `reducer.js`, `PlayerCard.jsx`
+**Depends on:** Step 7 (streets)
+
+- [ ] Replace the existing `anyWager` check logic with street-aware logic
+- [ ] Disable Check when `player.currentBet < max(currentBet among active players on current street)`
+- [ ] Disable Check applies only to the active player (non-active players are already disabled)
+- [ ] `check_blocked` analytics event fires when check is attempted and blocked (if tracking client-side)
+
+---
+
+### Step 11 — Analytics (Both Layers)
+**Scope:** `reducer.js`
+
+- [ ] `call_placed`: fires on `CALL` with `call_amount`, `player_stack`, `hand_number`
+- [ ] `all_in_placed`: fires on `PLACE_BET` or `CALL` when stack reaches 0 with `player_stack: 0`, `hand_number`
+- [ ] `split_pot_awarded`: fires on `AWARD_SPLIT_POT` with `split_count`, `pot_amount`, `hand_number`
+- [ ] `street_advanced`: fires on `ADVANCE_STREET` with `street_name`, `hand_number`
+- [ ] `blind_config_set`: fires on `SET_BLINDS` with `small_blind`, `big_blind`
+- [ ] All new events follow the existing pattern: fired in `reducer.js` as side effects, not in components
+
+---
+
+### Step 12 — Mobile Polish (Both Layers)
+
+- [ ] Review tap target sizes for new buttons (Rotate dealer, Next street, Next player, Call)
+- [ ] Confirm active player highlight is clearly visible on small screens
+- [ ] Confirm D / SB / BB badges are legible on small screens
+- [ ] Confirm "All-in" badge does not break player card layout
+- [ ] Confirm split pot flow is usable on mobile (multi-select targets are large enough)
+- [ ] Smoke test the full hand flow on a mobile viewport
 
 ---
 
@@ -215,7 +390,7 @@ Layer 1 steps (1–4) are independent of each other and can be built in any orde
 
 **Dealer/SB/BB derived at render, not stored.** Only `dealerIndex` is stored in state. SB = `(dealerIndex + 1) % activePlayers.length`, BB = `(dealerIndex + 2) % activePlayers.length`. This avoids keeping three fields in sync and keeps rotation logic simple — increment `dealerIndex` by 1 on `NEXT_HAND`.
 
-**`currentBet` resets per street.** With streets active, `currentBet` tracks the amount a player has put in during the current street, not the entire hand. The pot (which accumulates correctly across streets) is the source of truth for total chips committed. This makes the call button calculation correct across streets.
+**`currentBet` resets per street.** With streets active, `currentBet` tracks the amount a player has put in during the current betting street, not the entire hand. The pot (which accumulates correctly across streets) is the source of truth for total chips committed. This makes the call button calculation correct across streets.
 
 **Split pot remainder rule.** Integer division only — no fractional amounts. Any remainder from odd-pot splits is displayed to users and stays in the pot. No remainder is distributed. This is the simplest rule that is also accurate.
 
