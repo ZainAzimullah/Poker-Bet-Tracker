@@ -110,8 +110,6 @@ See [roadmap.md](docs/roadmap.md) for full detail and the conditions that unlock
 ---
 
 ## User Test Findings
-
-**Data sources:** Mixpanel (Apr 18 – May 4, 2026) · Post-session survey (n=2) · Follow-up interview  
 **Full report:** [findings-and-recommendations.md](docs/findings-and-recommendations.md)
 
 ### MVP Metric Results
@@ -144,21 +142,6 @@ See [roadmap.md](docs/roadmap.md) for full detail and the conditions that unlock
 | 🟡 Pull forward | Dealer/blind position display + rotate button (display only, no enforcement) |
 | 🟢 As planned | Turn order, betting streets, blind config, rules enforcement → Release 2 |
 | 🟢 As planned | Split pot, all-in shortcut, history → Backlog |
-
----
-
-## Reflection & Key Learnings
-
-**Upfront PM structure shaped better product decisions.**
-Defining the problem, JTBD, and north star before writing any code made scope decisions easier and more defensible. When something was tempting to add — turn order, blind enforcement — the OST made it clear it was a Release 2 problem, not an MVP problem.
-
-**The narrowest version of the core loop is the right place to start.**
-The MVP deliberately avoids poker-specific complexity. The real question wasn't "can we build a poker engine?" — it was "will users trust a simple tracker enough to play multiple hands?" Scoping to that question kept the build focused.
-
-**Simple over comprehensive is a discipline, not a default.**
-Every feature cut was a deliberate choice backed by the product principles. The goal was a trustworthy, glanceable interface — not a rule-complete simulator.
-
-> The first goal is simple, trustworthy hand tracking. Complexity is earned, not assumed.
 
 ---
 
