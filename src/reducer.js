@@ -1,4 +1,5 @@
 import { track } from './analytics'
+import { playCheckSound } from './gameSounds'
 
 export const initialState = {
   screen: 'setup',
@@ -391,6 +392,7 @@ function applySoleActorAutoPasses(state) {
     if (ps[a].currentBet < maxBet) return s
 
     track('check_selected', { hand_number: s.handNumber, auto_sole_actor: true })
+    playCheckSound()
     s = finalizePlayerAction({ ...s }, ps, a)
   }
   return s

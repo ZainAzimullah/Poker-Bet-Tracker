@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('../analytics', () => ({ track: vi.fn() }))
+vi.mock('../gameSounds', () => ({
+  playCheckSound: vi.fn(),
+}))
 
 import { reducer, initialState, nextEligibleIndex } from '../reducer'
 

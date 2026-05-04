@@ -191,6 +191,19 @@ The post-MVP review validated the core loop; Release 2 and the v2 **enforcement 
 
 ---
 
+## Sound effects (third-party audio)
+
+Gameplay uses short **CC0** and **public domain** clips from `public/sounds/`.
+
+| Use | File | License / source |
+|-----|------|------------------|
+| Bet, call, raise | `chip-lay-1.ogg`, `chip-lay-2.ogg` | **CC0** — *Casino Audio* by [Kenney](https://www.kenney.nl/) ([OpenGameArt bundle](https://opengameart.org/content/54-casino-sound-effects-cards-dice-chips)). Full text: [`public/sounds/KENNEY-CASINO-AUDIO-LICENSE.txt`](public/sounds/KENNEY-CASINO-AUDIO-LICENSE.txt). |
+| Fold | `card-place-2.ogg` | Same Kenney *Casino Audio* pack (CC0), as above. |
+| Pot / split-pot awarded | `chips-handle-5.ogg` | Same Kenney *Casino Audio* pack (CC0), as above. |
+| Check | `door-knock-0095.ogg` | **CC0 (public-domain equivalent)** — “Door Knock” by [Joseph SARDIN](https://josephsardin.fr/) from [BigSoundBank](https://bigsoundbank.com/door-knock-s0095.html). The app plays two brief excerpts for a double-knock check cue. |
+
+---
+
 ## Local Development
 
 ### Prerequisites
