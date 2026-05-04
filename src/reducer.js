@@ -64,17 +64,22 @@ export function getBlindIndices(players, dealerIndex, headsUpStreak) {
   return { sbIdx: sb, bbIdx: bb }
 }
 
-/** Next seat that may still bet (not busted, not folded, not all-in). Null if no one can act. */
+/** True if this seat may take a betting action (chips behind or can open). */
+function canVolitionallyActSeat(players, idx) {
+  const p = players[idx]
+  if (!p || p.bustedOut || p.hasFolded || p.isAllIn) return false
+  if (p.currentStack <= 0) return false
+  return true
+}
+
+/** Next seat that may still bet (not busted, not folded, not all-in, has chips). Null if no one can act. */
 export function nextEligibleIndex(players, fromIndex) {
   const count = players.length
-  const canVolitionallyAct = (idx) =>
-    !players[idx].bustedOut && !players[idx].hasFolded && !players[idx].isAllIn
-
   for (let i = 1; i <= count; i++) {
     const idx = (fromIndex + i) % count
-    if (canVolitionallyAct(idx)) return idx
+    if (canVolitionallyActSeat(players, idx)) return idx
   }
-  return canVolitionallyAct(fromIndex) ? fromIndex : null
+  return canVolitionallyActSeat(players, fromIndex) ? fromIndex : null
 }
 
 function maxContribution(players) {
@@ -86,7 +91,12 @@ function maxContribution(players) {
 function needsContributionToMatch(players) {
   const maxBet = maxContribution(players)
   return players.some(
-    (p) => !p.bustedOut && !p.hasFolded && !p.isAllIn && p.currentBet < maxBet,
+    (p) =>
+      !p.bustedOut &&
+      !p.hasFolded &&
+      !p.isAllIn &&
+      p.currentStack > 0 &&
+      p.currentBet < maxBet,
   )
 }
 
@@ -105,11 +115,11 @@ export function isBettingRoundClosed(
   actingPlayerIndex,
   lastRaisePlayerIndex,
 ) {
-  if (firstActorIndex === null || firstActorIndex === undefined) return false
   if (livePlayerCount(players) <= 1) return true
   if (needsContributionToMatch(players)) return false
   const nextIdx = nextEligibleIndex(players, actingPlayerIndex)
   if (nextIdx === null) return true
+  if (firstActorIndex === null || firstActorIndex === undefined) return false
   if (nextIdx === firstActorIndex) return true
   if (
     lastRaisePlayerIndex !== null &&
@@ -232,38 +242,61 @@ function maybeStreetPromptAfterRound(nextState) {
   }
 }
 
+/** Re-anchor first actor when null or pointing at a seat that can no longer act (e.g. all-in). */
+function repairFirstActorIndex(state, players) {
+  const street = state.currentStreet
+  const anchor =
+    street === 'preflop'
+      ? getBlindIndices(players, state.dealerIndex, state.headsUpStreak ?? 0).bbIdx
+      : state.dealerIndex
+  const fa = state.firstActorIndex
+  if (fa == null) {
+    return nextEligibleIndex(players, anchor)
+  }
+  if (canVolitionallyActSeat(players, fa)) {
+    return fa
+  }
+  return nextEligibleIndex(players, anchor)
+}
+
 function finalizePlayerAction(nextState, newPlayers, actingIndex) {
+  const repairedFA = repairFirstActorIndex(nextState, newPlayers)
+  const base =
+    repairedFA !== nextState.firstActorIndex
+      ? { ...nextState, firstActorIndex: repairedFA }
+      : nextState
+
   const closed = isBettingRoundClosed(
     newPlayers,
-    nextState.firstActorIndex,
+    base.firstActorIndex,
     actingIndex,
-    nextState.lastRaisePlayerIndex,
+    base.lastRaisePlayerIndex,
   )
   if (!closed) {
     let nextA =
-      nextState.activePlayerIndex !== null ? nextEligibleIndex(newPlayers, actingIndex) : null
+      base.activePlayerIndex !== null ? nextEligibleIndex(newPlayers, actingIndex) : null
     if (nextA === null) {
-      const stalled = { ...nextState, players: newPlayers, activePlayerIndex: null }
+      const stalled = { ...base, players: newPlayers, activePlayerIndex: null }
       if (livePlayerCount(newPlayers) <= 1) {
         return { ...stalled, pendingStreetPrompt: null }
       }
       return maybeStreetPromptAfterRound(stalled)
     }
-    return applySoleActorAutoPasses({ ...nextState, players: newPlayers, activePlayerIndex: nextA })
+    return applySoleActorAutoPasses({ ...base, players: newPlayers, activePlayerIndex: nextA })
   }
 
   if (livePlayerCount(newPlayers) <= 1) {
-    return { ...nextState, players: newPlayers, activePlayerIndex: null, pendingStreetPrompt: null }
+    return { ...base, players: newPlayers, activePlayerIndex: null, pendingStreetPrompt: null }
   }
 
-  return maybeStreetPromptAfterRound({ ...nextState, players: newPlayers })
+  return maybeStreetPromptAfterRound({ ...base, players: newPlayers })
 }
 
 /** Single player who can still place chips; null if zero or multiple. */
 function soleVolitionalPlayerIndex(players) {
   let found = null
   for (let i = 0; i < players.length; i++) {
-    if (!players[i].bustedOut && !players[i].hasFolded && !players[i].isAllIn) {
+    if (canVolitionallyActSeat(players, i)) {
       if (found !== null) return null
       found = i
     }

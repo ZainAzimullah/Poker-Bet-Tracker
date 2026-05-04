@@ -1107,6 +1107,49 @@ describe('All-in — cannot act; sole survivor auto-pass', () => {
     expect(next.pendingStreetPrompt).toBe('turn')
     expect(next.activePlayerIndex).toBeNull()
   })
+
+  it('does not infinite-loop checks when firstActorIndex is stale on an all-in seat (3-way)', () => {
+    const state = makeState({
+      currentStreet: 'flop',
+      dealerIndex: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      firstActorIndex: 2,
+      activePlayerIndex: 1,
+      lastRaisePlayerIndex: null,
+      handNumber: 2,
+      players: [
+        makePlayer({ id: 1, currentStack: 100, currentBet: 1 }),
+        makePlayer({ id: 2, currentStack: 206, currentBet: 1 }),
+        makePlayer({ id: 3, currentStack: 0, currentBet: 1, isAllIn: true }),
+      ],
+    })
+    let s = dispatch(state, { type: 'CHECK', id: 2 })
+    expect(s.pendingStreetPrompt).toBeNull()
+    s = dispatch(s, { type: 'CHECK', id: 1 })
+    expect(s.pendingStreetPrompt).toBe('turn')
+    expect(s.activePlayerIndex).toBeNull()
+  })
+
+  it('closes the round when firstActorIndex was null with two players still able to act', () => {
+    const state = makeState({
+      currentStreet: 'flop',
+      dealerIndex: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      firstActorIndex: null,
+      activePlayerIndex: 1,
+      lastRaisePlayerIndex: null,
+      players: [
+        makePlayer({ id: 1, currentStack: 100, currentBet: 1 }),
+        makePlayer({ id: 2, currentStack: 206, currentBet: 1 }),
+        makePlayer({ id: 3, currentStack: 0, currentBet: 1, isAllIn: true }),
+      ],
+    })
+    let s = dispatch(state, { type: 'CHECK', id: 2 })
+    s = dispatch(s, { type: 'CHECK', id: 1 })
+    expect(s.pendingStreetPrompt).toBe('turn')
+  })
 })
 
 // ---------------------------------------------------------------------------
