@@ -257,11 +257,19 @@ function nextHuState(players, dealerIndex, headsUpStreak) {
 
 function maybeStreetPromptAfterRound(nextState) {
   const { players, currentStreet: street } = nextState
-  if (!street || street === 'river') {
+  if (!street) {
     return { ...nextState, activePlayerIndex: null, pendingStreetPrompt: null }
   }
   if (livePlayerCount(players) <= 1) {
     return { ...nextState, activePlayerIndex: null, pendingStreetPrompt: null }
+  }
+  if (street === 'river') {
+    track('showdown_prompt_shown', { hand_number: nextState.handNumber })
+    return {
+      ...nextState,
+      activePlayerIndex: null,
+      pendingStreetPrompt: 'showdown',
+    }
   }
   const nextKey = NEXT_STREET[street]
   track('street_prompt_shown', { next_street: nextKey, hand_number: nextState.handNumber })
@@ -634,6 +642,10 @@ export function reducer(state, action) {
 
     case 'CONFIRM_NEXT_STREET': {
       if (!state.pendingStreetPrompt) return state
+      if (state.pendingStreetPrompt === 'showdown') {
+        track('showdown_confirmed', { hand_number: state.handNumber })
+        return { ...state, screen: 'endHand', pendingStreetPrompt: null, activePlayerIndex: null }
+      }
       track('street_confirmed', { next_street: state.pendingStreetPrompt, hand_number: state.handNumber })
       return advanceStreetCore({ ...state, pendingStreetPrompt: null })
     }

@@ -6,6 +6,7 @@ vi.mock('../gameSounds', () => ({
 }))
 
 import { reducer, initialState, nextEligibleIndex } from '../reducer'
+import { track } from '../analytics'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -37,6 +38,10 @@ function makeState(overrides = {}) {
 function dispatch(state, action) {
   return reducer(state, action)
 }
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 // ---------------------------------------------------------------------------
 // Step 2 — CALL action
@@ -812,6 +817,30 @@ describe('CONFIRM_NEXT_STREET', () => {
     const next = dispatch(state, { type: 'ADVANCE_STREET' })
     expect(next.currentStreet).toBe('preflop')
   })
+
+  it('moves to pot-award screen when showdown prompt is confirmed', () => {
+    const state = makeState({
+      currentStreet: 'river',
+      pendingStreetPrompt: 'showdown',
+      screen: 'gameplay',
+      activePlayerIndex: null,
+      players: [makePlayer({ id: 1 }), makePlayer({ id: 2 })],
+    })
+    const next = dispatch(state, { type: 'CONFIRM_NEXT_STREET' })
+    expect(next.screen).toBe('endHand')
+    expect(next.pendingStreetPrompt).toBeNull()
+  })
+
+  it('tracks showdown_confirmed when showdown prompt is confirmed', () => {
+    const state = makeState({
+      currentStreet: 'river',
+      pendingStreetPrompt: 'showdown',
+      screen: 'gameplay',
+      players: [makePlayer({ id: 1 }), makePlayer({ id: 2 })],
+    })
+    dispatch(state, { type: 'CONFIRM_NEXT_STREET' })
+    expect(track).toHaveBeenCalledWith('showdown_confirmed', { hand_number: state.handNumber })
+  })
 })
 
 describe('START_GAME sets currentStreet to preflop', () => {
@@ -1176,6 +1205,26 @@ describe('All-in — cannot act; sole survivor auto-pass', () => {
     expect(next.players[0].currentBet).toBe(182)
     expect(next.pendingStreetPrompt).toBe('turn')
     expect(next.activePlayerIndex).toBeNull()
+  })
+
+  it('prompts showdown when river action closes with multiple players live', () => {
+    const state = makeState({
+      currentStreet: 'river',
+      dealerIndex: 0,
+      firstActorIndex: 0,
+      activePlayerIndex: 0,
+      handNumber: 3,
+      pot: 40,
+      players: [
+        makePlayer({ id: 1, currentStack: 80, currentBet: 0 }),
+        makePlayer({ id: 2, currentStack: 60, currentBet: 0 }),
+      ],
+    })
+    const afterFirstCheck = dispatch(state, { type: 'CHECK', id: 1 })
+    const next = dispatch(afterFirstCheck, { type: 'CHECK', id: 2 })
+    expect(next.pendingStreetPrompt).toBe('showdown')
+    expect(next.activePlayerIndex).toBeNull()
+    expect(track).toHaveBeenCalledWith('showdown_prompt_shown', { hand_number: 3 })
   })
 })
 

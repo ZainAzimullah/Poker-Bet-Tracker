@@ -28,6 +28,11 @@ const PROMPT_COPY = {
     title: 'Deal the river',
     body: 'Deal the river card, then confirm here once it has been placed.',
   },
+  showdown: {
+    title: 'Showdown',
+    body: 'No betting actions remain on the river. Reveal hands now, then confirm to award the pot.',
+    cta: 'Go to pot award',
+  },
 }
 
 export default function GameplayScreen() {
@@ -58,7 +63,7 @@ export default function GameplayScreen() {
               onClick={() => dispatch({ type: 'CONFIRM_NEXT_STREET' })}
               className="w-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-400 text-white font-semibold rounded-xl py-3 text-sm transition-colors"
             >
-              OK
+              {PROMPT_COPY[pending].cta ?? 'OK'}
             </button>
           </div>
         </div>
