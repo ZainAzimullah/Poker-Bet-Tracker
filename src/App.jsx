@@ -97,6 +97,23 @@ export default function App() {
     }
   }, [])
 
+  useEffect(() => {
+    const onPointerUp = (event) => {
+      if (event.pointerType !== 'touch') return
+      const target = event.target
+      if (!(target instanceof Element)) return
+      const button = target.closest('button')
+      if (!(button instanceof HTMLButtonElement)) return
+      // Touch-focused buttons can trigger mobile scroll anchoring after re-renders.
+      window.requestAnimationFrame(() => button.blur())
+    }
+
+    window.addEventListener('pointerup', onPointerUp, { passive: true })
+    return () => {
+      window.removeEventListener('pointerup', onPointerUp)
+    }
+  }, [])
+
   return (
     <GameContext.Provider value={{ state, dispatch }}>
       <div className="min-h-screen bg-zinc-950 text-white font-sans">

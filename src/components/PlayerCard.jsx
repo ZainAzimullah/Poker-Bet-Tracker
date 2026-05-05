@@ -15,6 +15,9 @@ export default function PlayerCard({ player }) {
   const [bettingOpen, setBettingOpen] = useState(false)
   const [betInput, setBetInput] = useState('')
   const [betError, setBetError] = useState('')
+  const shouldAutoFocusBetInput =
+    typeof window !== 'undefined' &&
+    window.matchMedia('(hover: hover) and (pointer: fine)').matches
 
   const playerIndex = state.players.findIndex((p) => p.id === player.id)
 
@@ -214,7 +217,7 @@ export default function PlayerCard({ player }) {
             <div className="flex items-center bg-zinc-800 rounded-lg overflow-hidden">
               <span className="pl-3 text-zinc-400 text-sm">$</span>
               <input
-                autoFocus
+                autoFocus={shouldAutoFocusBetInput}
                 type="number"
                 min="1"
                 step="1"
