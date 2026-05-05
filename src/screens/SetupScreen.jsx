@@ -113,16 +113,12 @@ export default function SetupScreen() {
           <p className="text-xs text-zinc-500 uppercase tracking-wider mb-3">Players</p>
           <ul className="space-y-2">
             {state.players.map((p, i) => {
-              const role =
-                p.bustedOut
-                  ? null
-                  : i === state.dealerIndex
-                    ? 'DEALER'
-                    : i === sbIdx
-                      ? 'SMALL BLIND'
-                      : i === bbIdx
-                        ? 'BIG BLIND'
-                        : null
+              const roles = p.bustedOut ? [] : []
+              if (!p.bustedOut) {
+                if (i === state.dealerIndex) roles.push('DEALER')
+                if (i === sbIdx) roles.push('SMALL BLIND')
+                if (i === bbIdx) roles.push('BIG BLIND')
+              }
               return (
                 <li
                   key={p.id}
@@ -134,11 +130,14 @@ export default function SetupScreen() {
                     <span className={`text-sm font-medium ${p.bustedOut ? 'text-zinc-500' : ''}`}>
                       {p.name}
                     </span>
-                    {role && (
-                      <span className="text-[10px] font-semibold text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded uppercase tracking-wide whitespace-nowrap">
-                        {role}
+                    {roles.map((r) => (
+                      <span
+                        key={r}
+                        className="text-[10px] font-semibold text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded uppercase tracking-wide whitespace-nowrap"
+                      >
+                        {r}
                       </span>
-                    )}
+                    ))}
                     {p.bustedOut && (
                       <span className="text-[10px] font-semibold text-zinc-500 bg-zinc-800/80 px-1.5 py-0.5 rounded uppercase tracking-wide">
                         Busted Out
