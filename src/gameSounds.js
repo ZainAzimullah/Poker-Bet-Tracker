@@ -14,6 +14,7 @@ const KNOCK_URL = '/sounds/door-knock-0095.ogg'
 const POT_AWARD_URL = '/sounds/chips-handle-5.ogg'
 const ALL_IN_URL = '/sounds/chips-handle-6.ogg'
 const ALL_IN_LAYER_URL = '/sounds/chips-collide-3.ogg'
+const FUNNY_BOING_URL = '/sounds/boing-cartoon-4.ogg'
 let checkTailTimeout = null
 const bufferCache = new Map()
 const inflightLoads = new Map()
@@ -30,6 +31,7 @@ const PRELOAD_URLS = [
   POT_AWARD_URL,
   ALL_IN_URL,
   ALL_IN_LAYER_URL,
+  FUNNY_BOING_URL,
 ]
 
 function supportsOggPlayback() {
@@ -235,6 +237,13 @@ export function playAllInSound() {
   synthTone({ frequency: 170, type: 'sawtooth', durationSec: 0.1, volume: 0.06 })
   synthTone({ frequency: 240, type: 'square', durationSec: 0.08, volume: 0.048, startDelaySec: 0.03 })
   synthTone({ frequency: 320, type: 'triangle', durationSec: 0.07, volume: 0.036, startDelaySec: 0.07 })
+}
+
+export function playFunnyBoingSound() {
+  if (playBuffer(FUNNY_BOING_URL, { volume: 0.55, offset: 0.02, duration: 0.7 })) return
+  synthTone({ frequency: 320, type: 'triangle', durationSec: 0.05, volume: 0.03 })
+  synthTone({ frequency: 510, type: 'sine', durationSec: 0.07, volume: 0.028, startDelaySec: 0.04 })
+  synthTone({ frequency: 240, type: 'triangle', durationSec: 0.06, volume: 0.024, startDelaySec: 0.12 })
 }
 
 export function cancelPendingCheckSound() {

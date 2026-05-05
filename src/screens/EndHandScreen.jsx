@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useGame } from '../App'
+import { playFunnyBoingSound } from '../gameSounds'
 
 export default function EndHandScreen() {
   const { state, dispatch } = useGame()
@@ -33,6 +34,10 @@ export default function EndHandScreen() {
   const splitShare = selectedIds.length > 0 ? Math.floor(state.pot / selectedIds.length) : null
   const splitRemainder = selectedIds.length > 0 ? state.pot % selectedIds.length : null
   const canAward = splitMode ? selectedIds.length > 0 : !!selectedId
+
+  useEffect(() => {
+    playFunnyBoingSound()
+  }, [])
 
   return (
     <div className="max-w-md mx-auto px-4 py-10">

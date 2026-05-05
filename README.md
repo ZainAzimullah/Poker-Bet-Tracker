@@ -201,6 +201,7 @@ Gameplay uses short **CC0** and **public domain** clips from `public/sounds/`.
 |-----|------|------------------|
 | Bet, call, raise | `chip-lay-1.ogg`, `chip-lay-2.ogg` | **CC0** — *Casino Audio* by [Kenney](https://www.kenney.nl/) ([OpenGameArt bundle](https://opengameart.org/content/54-casino-sound-effects-cards-dice-chips)). Full text: [`public/sounds/KENNEY-CASINO-AUDIO-LICENSE.txt`](public/sounds/KENNEY-CASINO-AUDIO-LICENSE.txt). |
 | Deal cards (street confirms) | `card-place-1.ogg` (played 3x for flop, 1x for turn/river) | Same Kenney *Casino Audio* pack (CC0), as above. |
+| End-hand winner selection screen appears | `boing-cartoon-4.ogg` | **CC0 (public-domain equivalent)** — “Boing cartoon #4” by [Joseph SARDIN](https://josephsardin.fr/) from [BigSoundBank](https://bigsoundbank.com/boing-cartoon-4-s2280.html). |
 | Fold | `card-place-2.ogg` | Same Kenney *Casino Audio* pack (CC0), as above. |
 | Player goes all-in | `chips-handle-6.ogg` + `chips-collide-3.ogg` (layered) | Same Kenney *Casino Audio* pack (CC0), as above. |
 | Pot / split-pot awarded | `chips-handle-5.ogg` | Same Kenney *Casino Audio* pack (CC0), as above. |
