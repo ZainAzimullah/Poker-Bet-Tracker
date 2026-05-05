@@ -2,12 +2,6 @@ import { useState } from 'react'
 import { useGame } from '../App'
 import { getBlindIndices } from '../reducer'
 
-const ROLE_LABEL = {
-  D: 'DEALER',
-  SB: 'SMALL BLIND',
-  BB: 'BIG BLIND',
-}
-
 function primaryVoluntaryBetLabel(streetAggressionCount, maxBet, openingStreet) {
   const nextLevel = streetAggressionCount + 1
   if (maxBet === 0 && openingStreet) return 'Bet'
@@ -27,8 +21,10 @@ export default function PlayerCard({ player }) {
   const dealerIdx = state.dealerIndex
   const streak = state.headsUpStreak ?? 0
   const { sbIdx, bbIdx } = getBlindIndices(state.players, dealerIdx, streak)
-  const roleKey = playerIndex === dealerIdx ? 'D' : playerIndex === sbIdx ? 'SB' : playerIndex === bbIdx ? 'BB' : null
-  const role = roleKey ? ROLE_LABEL[roleKey] : null
+  const roles = []
+  if (playerIndex === dealerIdx) roles.push('DEALER')
+  if (playerIndex === sbIdx) roles.push('SMALL BLIND')
+  if (playerIndex === bbIdx) roles.push('BIG BLIND')
   const isBB = playerIndex === bbIdx
 
   const streetBlocked = state.pendingStreetPrompt != null
@@ -163,11 +159,14 @@ export default function PlayerCard({ player }) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="font-medium text-sm">{player.name}</p>
-            {role && (
-              <span className="text-[10px] font-semibold text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded uppercase tracking-wide">
-                {role}
+            {roles.map((r) => (
+              <span
+                key={r}
+                className="text-[10px] font-semibold text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded uppercase tracking-wide"
+              >
+                {r}
               </span>
-            )}
+            ))}
           </div>
           <div className="flex items-center gap-2">
             <div className="text-right">
@@ -190,11 +189,14 @@ export default function PlayerCard({ player }) {
       <div className="flex items-start justify-between mb-3 gap-2">
         <div className="flex items-center gap-2 flex-wrap min-w-0">
           <p className="font-medium text-sm">{player.name}</p>
-          {role && (
-            <span className="text-[10px] font-semibold text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded uppercase tracking-wide whitespace-nowrap">
-              {role}
+          {roles.map((r) => (
+            <span
+              key={r}
+              className="text-[10px] font-semibold text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded uppercase tracking-wide whitespace-nowrap"
+            >
+              {r}
             </span>
-          )}
+          ))}
         </div>
         <div className="text-right shrink-0">
           <p className="text-xs text-zinc-400">Stack: <span className="text-white font-medium">${player.currentStack}</span></p>

@@ -1,5 +1,9 @@
 /**
  * Short UI sounds. Chip/card clips are CC0 (Kenney); check knock is CC0/public-domain equivalent (BigSoundBank).
+ *
+ * Web Audio API pipeline: sound files are fetched once, decoded into AudioBuffers,
+ * and played via AudioBufferSourceNode. This avoids the metadata-load + seek races
+ * that plague HTMLAudioElement playback on mobile.
  */
 
 const CHIP_URLS = ['/sounds/chip-lay-1.ogg', '/sounds/chip-lay-2.ogg']
@@ -11,7 +15,8 @@ const POT_AWARD_URL = '/sounds/chips-handle-5.ogg'
 const ALL_IN_URL = '/sounds/chips-handle-6.ogg'
 const ALL_IN_LAYER_URL = '/sounds/chips-collide-3.ogg'
 let checkTailTimeout = null
-const audioCache = new Map()
+const bufferCache = new Map()
+const inflightLoads = new Map()
 let soundsWarmFromGesture = false
 let audioContext = null
 let forceSynthFallback = false
@@ -73,31 +78,84 @@ function synthTone({
   osc.stop(now + durationSec + releaseSec + 0.01)
 }
 
-function ensureCachedAudio(url) {
-  if (!shouldUseOgg()) return null
-  if (typeof window === 'undefined') return null
-  if (!audioCache.has(url)) {
-    const a = new Audio(url)
-    a.preload = 'auto'
-    a.playsInline = true
-    a.load()
-    audioCache.set(url, a)
-  }
-  return audioCache.get(url)
+function loadBuffer(url) {
+  if (typeof window === 'undefined') return Promise.resolve(null)
+  if (!shouldUseOgg()) return Promise.resolve(null)
+  if (bufferCache.has(url)) return Promise.resolve(bufferCache.get(url))
+  if (inflightLoads.has(url)) return inflightLoads.get(url)
+  const ctx = getAudioContext()
+  if (!ctx) return Promise.resolve(null)
+  const p = fetch(url)
+    .then((r) => {
+      if (!r.ok) throw new Error(`fetch ${url}: ${r.status}`)
+      return r.arrayBuffer()
+    })
+    .then(
+      (arr) =>
+        new Promise((resolve, reject) => {
+          // Some Safari versions only support the callback form.
+          try {
+            const maybe = ctx.decodeAudioData(arr, resolve, reject)
+            if (maybe && typeof maybe.then === 'function') {
+              maybe.then(resolve, reject)
+            }
+          } catch (err) {
+            reject(err)
+          }
+        }),
+    )
+    .then((buffer) => {
+      bufferCache.set(url, buffer)
+      inflightLoads.delete(url)
+      return buffer
+    })
+    .catch(() => {
+      forceSynthFallback = true
+      inflightLoads.delete(url)
+      return null
+    })
+  inflightLoads.set(url, p)
+  return p
 }
 
-function createPlayableAudio(url) {
-  const cached = ensureCachedAudio(url)
-  if (!cached) return null
-  // Clone from preloaded element to reduce startup latency.
-  return cached.cloneNode(true)
+function playBuffer(url, { volume = 1, offset = 0, duration } = {}) {
+  if (typeof window === 'undefined') return false
+  if (!shouldUseOgg()) return false
+  const ctx = getAudioContext()
+  if (!ctx) return false
+  const buffer = bufferCache.get(url)
+  if (!buffer) {
+    // Kick off a load so the next call can play; this call falls back to synth.
+    void loadBuffer(url)
+    return false
+  }
+  try {
+    const source = ctx.createBufferSource()
+    const gain = ctx.createGain()
+    source.buffer = buffer
+    gain.gain.value = volume
+    source.connect(gain)
+    gain.connect(ctx.destination)
+    if (typeof duration === 'number') {
+      source.start(0, offset, duration)
+    } else if (offset > 0) {
+      source.start(0, offset)
+    } else {
+      source.start(0)
+    }
+    return true
+  } catch {
+    forceSynthFallback = true
+    return false
+  }
 }
 
 export function initGameSounds() {
   if (typeof window === 'undefined') return
-  if (shouldUseOgg()) {
-    PRELOAD_URLS.forEach((url) => ensureCachedAudio(url))
-  }
+  if (!shouldUseOgg()) return
+  PRELOAD_URLS.forEach((url) => {
+    void loadBuffer(url)
+  })
 }
 
 export function warmGameSoundsFromGesture() {
@@ -109,144 +167,74 @@ export function warmGameSoundsFromGesture() {
   }
 }
 
-function playOgg(url, volume) {
-  if (typeof window === 'undefined') return
-  if (!shouldUseOgg()) return
-  try {
-    const a = createPlayableAudio(url)
-    if (!a) return
-    a.volume = volume
-    const p = a.play()
-    if (p && typeof p.catch === 'function') {
-      void p.catch(() => {
-        forceSynthFallback = true
-      })
-    }
-  } catch {
-    forceSynthFallback = true
-  }
-}
-
-function playShortClip(url, volume, durationMs, startAtSec = 0) {
-  if (typeof window === 'undefined') return
-  if (!shouldUseOgg()) return false
-  try {
-    const a = createPlayableAudio(url)
-    if (!a) return false
-    a.volume = volume
-    const begin = () => {
-      try {
-        // Start from a louder section of the source.
-        a.currentTime = startAtSec
-      } catch {
-        /* ignore */
-      }
-      const p = a.play()
-      if (p && typeof p.catch === 'function') {
-        void p.catch(() => {
-          forceSynthFallback = true
-        })
-      }
-      window.setTimeout(() => {
-        try {
-          a.pause()
-          a.currentTime = 0
-        } catch {
-          /* ignore */
-        }
-      }, durationMs)
-    }
-
-    // currentTime seeks are more reliable after metadata is ready.
-    if (a.readyState >= 1) {
-      begin()
-    } else {
-      a.addEventListener('loadedmetadata', begin, { once: true })
-      a.load()
-    }
-    return true
-  } catch {
-    forceSynthFallback = true
-    return false
-  }
-}
-
 export function playChipSound() {
-  if (!shouldUseOgg()) {
-    synthTone({ frequency: 360, type: 'square', durationSec: 0.05, volume: 0.045 })
-    synthTone({ frequency: 520, type: 'triangle', durationSec: 0.03, volume: 0.028, startDelaySec: 0.02 })
-    return
-  }
   const url = CHIP_URLS[Math.floor(Math.random() * CHIP_URLS.length)]
-  playOgg(url, 0.42)
+  if (playBuffer(url, { volume: 0.42 })) return
+  synthTone({ frequency: 360, type: 'square', durationSec: 0.05, volume: 0.045 })
+  synthTone({ frequency: 520, type: 'triangle', durationSec: 0.03, volume: 0.028, startDelaySec: 0.02 })
 }
 
 export function playFoldSound() {
-  if (!shouldUseOgg()) {
-    synthTone({ frequency: 210, type: 'sawtooth', durationSec: 0.08, volume: 0.04 })
-    return
-  }
-  playOgg(FOLD_URL, 0.38)
+  if (playBuffer(FOLD_URL, { volume: 0.38 })) return
+  synthTone({ frequency: 210, type: 'sawtooth', durationSec: 0.08, volume: 0.04 })
 }
 
 export function playShuffleSound() {
-  if (!shouldUseOgg()) {
-    synthTone({ frequency: 300, type: 'sawtooth', durationSec: 0.06, volume: 0.03 })
-    synthTone({ frequency: 420, type: 'square', durationSec: 0.05, volume: 0.022, startDelaySec: 0.05 })
-    synthTone({ frequency: 260, type: 'triangle', durationSec: 0.05, volume: 0.02, startDelaySec: 0.1 })
+  if (playBuffer(SHUFFLE_URL, { volume: 1, offset: 0.34, duration: 0.76 })) {
+    window.setTimeout(
+      () => playBuffer(SHUFFLE_URL, { volume: 0.88, offset: 0.46, duration: 0.52 }),
+      70,
+    )
+    window.setTimeout(
+      () => playBuffer(SHUFFLE_URL, { volume: 0.52, offset: 0.62, duration: 0.36 }),
+      145,
+    )
     return
   }
-  // Strong riffle character from later in the clip, layered for impact.
-  playShortClip(SHUFFLE_URL, 1, 760, 0.34)
-  window.setTimeout(() => playShortClip(SHUFFLE_URL, 0.88, 520, 0.46), 70)
-  window.setTimeout(() => playShortClip(SHUFFLE_URL, 0.52, 360, 0.62), 145)
+  synthTone({ frequency: 300, type: 'sawtooth', durationSec: 0.06, volume: 0.03 })
+  synthTone({ frequency: 420, type: 'square', durationSec: 0.05, volume: 0.022, startDelaySec: 0.05 })
+  synthTone({ frequency: 260, type: 'triangle', durationSec: 0.05, volume: 0.02, startDelaySec: 0.1 })
 }
 
 export function playDealCardsSound(count = 1) {
-  if (!shouldUseOgg()) {
-    const n = Math.max(1, Math.floor(count))
+  const n = Math.max(1, Math.floor(count))
+  if (shouldUseOgg() && bufferCache.has(DEAL_CARD_URL)) {
     for (let i = 0; i < n; i++) {
-      synthTone({
-        frequency: 280 + i * 18,
-        type: 'square',
-        durationSec: 0.03,
-        volume: 0.018,
-        startDelaySec: i * 0.09,
-      })
+      window.setTimeout(() => playBuffer(DEAL_CARD_URL, { volume: 0.44 }), i * 120)
     }
     return
   }
-  const n = Math.max(1, Math.floor(count))
   for (let i = 0; i < n; i++) {
-    window.setTimeout(() => playOgg(DEAL_CARD_URL, 0.44), i * 120)
+    synthTone({
+      frequency: 280 + i * 18,
+      type: 'square',
+      durationSec: 0.03,
+      volume: 0.018,
+      startDelaySec: i * 0.09,
+    })
   }
 }
 
 export function playPotAwardSound() {
-  if (!shouldUseOgg()) {
-    synthTone({ frequency: 420, type: 'triangle', durationSec: 0.07, volume: 0.05 })
-    synthTone({ frequency: 620, type: 'triangle', durationSec: 0.09, volume: 0.035, startDelaySec: 0.04 })
-    return
-  }
-  playOgg(POT_AWARD_URL, 0.55)
+  if (playBuffer(POT_AWARD_URL, { volume: 0.55 })) return
+  synthTone({ frequency: 420, type: 'triangle', durationSec: 0.07, volume: 0.05 })
+  synthTone({ frequency: 620, type: 'triangle', durationSec: 0.09, volume: 0.035, startDelaySec: 0.04 })
 }
 
 export function playAllInSound() {
-  if (!shouldUseOgg()) {
-    synthTone({ frequency: 170, type: 'sawtooth', durationSec: 0.1, volume: 0.06 })
-    synthTone({ frequency: 240, type: 'square', durationSec: 0.08, volume: 0.048, startDelaySec: 0.03 })
-    synthTone({ frequency: 320, type: 'triangle', durationSec: 0.07, volume: 0.036, startDelaySec: 0.07 })
+  if (playBuffer(ALL_IN_URL, { volume: 0.62 })) {
+    window.setTimeout(() => playBuffer(ALL_IN_LAYER_URL, { volume: 0.45 }), 25)
+    window.setTimeout(() => playBuffer(ALL_IN_URL, { volume: 0.35 }), 65)
+    window.setTimeout(() => playBuffer(ALL_IN_LAYER_URL, { volume: 0.28 }), 105)
+    window.setTimeout(() => playBuffer(ALL_IN_URL, { volume: 0.42 }), 150)
+    window.setTimeout(() => playBuffer(ALL_IN_LAYER_URL, { volume: 0.33 }), 195)
+    window.setTimeout(() => playBuffer(ALL_IN_URL, { volume: 0.26 }), 240)
+    window.setTimeout(() => playBuffer(ALL_IN_LAYER_URL, { volume: 0.2 }), 320)
     return
   }
-  // Multi-layer burst so it sounds like 2-3 piles being shoved in.
-  playOgg(ALL_IN_URL, 0.62)
-  window.setTimeout(() => playOgg(ALL_IN_LAYER_URL, 0.45), 25)
-  window.setTimeout(() => playOgg(ALL_IN_URL, 0.35), 65)
-  window.setTimeout(() => playOgg(ALL_IN_LAYER_URL, 0.28), 105)
-  window.setTimeout(() => playOgg(ALL_IN_URL, 0.42), 150)
-  window.setTimeout(() => playOgg(ALL_IN_LAYER_URL, 0.33), 195)
-  window.setTimeout(() => playOgg(ALL_IN_URL, 0.26), 240)
-  window.setTimeout(() => playOgg(ALL_IN_LAYER_URL, 0.2), 320)
+  synthTone({ frequency: 170, type: 'sawtooth', durationSec: 0.1, volume: 0.06 })
+  synthTone({ frequency: 240, type: 'square', durationSec: 0.08, volume: 0.048, startDelaySec: 0.03 })
+  synthTone({ frequency: 320, type: 'triangle', durationSec: 0.07, volume: 0.036, startDelaySec: 0.07 })
 }
 
 export function cancelPendingCheckSound() {
@@ -257,12 +245,19 @@ export function cancelPendingCheckSound() {
 }
 
 /**
- * Two quick knocks from a louder CC0 knock recording.
- * Uses plain Audio playback for broad browser reliability.
+ * Two quick knocks. The source clip's first transient is around 0.42s in,
+ * so we offset playback to the louder body of the knock.
  */
 export function playCheckSound() {
-  if (!shouldUseOgg()) {
-    cancelPendingCheckSound()
+  cancelPendingCheckSound()
+  const KNOCK_OFFSET = 0.42
+  const KNOCK_DURATION = 0.17
+  const played = playBuffer(KNOCK_URL, {
+    volume: 1,
+    offset: KNOCK_OFFSET,
+    duration: KNOCK_DURATION,
+  })
+  if (!played) {
     synthTone({ frequency: 600, type: 'square', durationSec: 0.03, volume: 0.03 })
     checkTailTimeout = window.setTimeout(() => {
       synthTone({ frequency: 560, type: 'square', durationSec: 0.03, volume: 0.026 })
@@ -270,31 +265,15 @@ export function playCheckSound() {
     }, 130)
     return
   }
-  if (typeof window === 'undefined') return
-  try {
-    cancelPendingCheckSound()
-    // First transient in this sample is not at t=0, so jump into the louder knock body.
-    const started = playShortClip(KNOCK_URL, 1, 170, 0.42)
-    if (!started || !shouldUseOgg()) {
-      synthTone({ frequency: 600, type: 'square', durationSec: 0.03, volume: 0.03 })
-      checkTailTimeout = window.setTimeout(() => {
-        synthTone({ frequency: 560, type: 'square', durationSec: 0.03, volume: 0.026 })
-        checkTailTimeout = null
-      }, 130)
-      return
+  checkTailTimeout = window.setTimeout(() => {
+    const ok = playBuffer(KNOCK_URL, {
+      volume: 1,
+      offset: KNOCK_OFFSET,
+      duration: KNOCK_DURATION,
+    })
+    if (!ok) {
+      synthTone({ frequency: 560, type: 'square', durationSec: 0.03, volume: 0.026 })
     }
-
-    checkTailTimeout = window.setTimeout(() => {
-      try {
-        if (!playShortClip(KNOCK_URL, 1, 170, 0.42) || !shouldUseOgg()) {
-          synthTone({ frequency: 560, type: 'square', durationSec: 0.03, volume: 0.026 })
-        }
-      } catch {
-        /* ignore */
-      }
-      checkTailTimeout = null
-    }, 160)
-  } catch {
-    /* ignore */
-  }
+    checkTailTimeout = null
+  }, 160)
 }
