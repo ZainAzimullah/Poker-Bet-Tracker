@@ -2,12 +2,17 @@ import { useState } from 'react'
 import { useGame } from '../App'
 import { getBlindIndices } from '../reducer'
 
-function primaryVoluntaryBetLabel(streetAggressionCount, maxBet, openingStreet) {
-  const nextLevel = streetAggressionCount + 1
+function primaryVoluntaryBetLabel(streetAggressionCount, maxBet, openingStreet, currentStreet) {
   if (maxBet === 0 && openingStreet) return 'Bet'
-  if (nextLevel === 1) return 'Raise'
-  if (nextLevel === 2) return '3-bet'
-  return `${nextLevel + 1}-bet`
+  // Preflop starts with a forced blind wager already in the middle.
+  // That means the first voluntary raise is the "2-bet" (shown as Raise),
+  // and the first re-raise is the 3-bet.
+  const nextBetNumber =
+    currentStreet === 'preflop' && maxBet > 0
+      ? streetAggressionCount + 2
+      : streetAggressionCount + 1
+  if (nextBetNumber <= 2) return 'Raise'
+  return `${nextBetNumber}-bet`
 }
 
 export default function PlayerCard({ player }) {
@@ -75,6 +80,7 @@ export default function PlayerCard({ player }) {
     state.streetAggressionCount ?? 0,
     maxBet,
     openBettingStreet,
+    state.currentStreet,
   )
 
   function handleBetConfirm() {
