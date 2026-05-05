@@ -1,1 +1,10 @@
 @import "tailwindcss";
+
+/* Prevent iOS from zooming on focus for form controls. */
+@media (max-width: 768px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
