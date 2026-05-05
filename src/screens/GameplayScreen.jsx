@@ -8,6 +8,13 @@ const STREET_LABEL = {
   river: 'River',
 }
 
+const STREET_THEME = {
+  preflop: 'bg-sky-500/15 text-sky-300 border-sky-400/40',
+  flop: 'bg-emerald-500/15 text-emerald-300 border-emerald-400/40',
+  turn: 'bg-amber-500/15 text-amber-300 border-amber-400/40',
+  river: 'bg-violet-500/15 text-violet-300 border-violet-400/40',
+}
+
 const PROMPT_COPY = {
   flop: {
     title: 'Deal the flop',
@@ -27,6 +34,7 @@ export default function GameplayScreen() {
   const { state, dispatch } = useGame()
 
   const streetLabel = state.currentStreet ? STREET_LABEL[state.currentStreet] : null
+  const streetTheme = state.currentStreet ? STREET_THEME[state.currentStreet] : ''
   const pending = state.pendingStreetPrompt
 
   return (
@@ -57,14 +65,21 @@ export default function GameplayScreen() {
       )}
 
       <div className="text-center mb-6">
-        <p className="text-xs text-zinc-500 uppercase tracking-widest mb-1">Pot</p>
+        <p className="text-xs text-zinc-500 font-semibold uppercase tracking-widest mb-1">Pot</p>
         <p className="text-5xl font-bold tracking-tight">${state.pot}</p>
-        <p className="text-xs text-zinc-600 mt-2">Hand {state.handNumber}</p>
+        <p className="text-xs text-zinc-600 font-semibold mt-2">Hand {state.handNumber}</p>
         {streetLabel && (
-          <p className="text-xs text-zinc-500 mt-1 font-medium uppercase tracking-widest">{streetLabel}</p>
+          <div className="mt-3">
+            <p
+              className={`inline-flex items-center justify-center rounded-full border px-4 py-1.5 text-sm font-semibold tracking-wide ${streetTheme}`}
+              aria-live="polite"
+            >
+              {streetLabel}
+            </p>
+          </div>
         )}
         {state.smallBlind && state.bigBlind && (
-          <p className="text-xs text-zinc-700 mt-1">Blinds: ${state.smallBlind}/${state.bigBlind}</p>
+          <p className="text-sm text-zinc-300 font-semibold mt-1">Blinds: ${state.smallBlind}/${state.bigBlind}</p>
         )}
       </div>
 
